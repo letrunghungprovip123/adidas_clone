@@ -1,0 +1,35 @@
+[
+  {
+    "section": "Resources",
+    "titles": [
+      "Find A Store",
+      "Become A Member",
+      "Running Shoe Finder",
+      "Nike Coaching",
+      "Send Us Feedback"
+    ]
+  },
+  {
+    "section": "Help",
+    "titles": [
+      "Get Help",
+      "Order Status",
+      "Delivery",
+      "Returns",
+      "Payment Options",
+      "Contact Us"
+    ]
+  },
+  {
+    "section": "Company",
+    "titles": [
+      "About Nike",
+      "News",
+      "Careers",
+      "Investors",
+      "Sustainability",
+      "Impact",
+      "Report a Concern"
+    ]
+  }
+]

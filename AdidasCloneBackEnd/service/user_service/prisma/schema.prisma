@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model addresses {
+  id            Int       @id @default(autoincrement())
+  user_id       Int?
+  receiver_name String?   @db.VarChar(100)
+  phone         String?   @db.VarChar(20)
+  address_line  String?
+  city          String?   @db.VarChar(100)
+  district      String?   @db.VarChar(100)
+  is_default    Boolean?  @default(false)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  users         users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model cart_items {
+  id                 Int               @id @default(autoincrement())
+  user_id            Int?
+  product_variant_id Int?
+  quantity           Int?              @default(1)
+  added_at           DateTime?         @default(now()) @db.Timestamp(6)
+  product_variants   product_variants? @relation(fields: [product_variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users              users?            @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model categories {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique @db.VarChar(100)
+  slug        String     @unique @db.VarChar(100)
+  description String?
+  products    products[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model discount_codes {
+  id               Int       @id @default(autoincrement())
+  code             String    @unique @db.VarChar(50)
+  description      String?
+  discount_type    String?   @db.VarChar(20)
+  value            Decimal?  @db.Decimal(10, 2)
+  min_order_amount Decimal?  @db.Decimal(10, 2)
+  usage_limit      Int?
+  used_count       Int?      @default(0)
+  valid_from       DateTime? @db.Date
+  valid_to         DateTime? @db.Date
+  is_active        Boolean?  @default(true)
+  orders           orders[]
+}
+
+model loyalty_points {
+  id         Int       @id @default(autoincrement())
+  user_id    Int?
+  points     Int?      @default(0)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model notifications {
+  id         Int       @id @default(autoincrement())
+  user_id    Int?
+  type       String?   @db.VarChar(50)
+  content    String?
+  sent       Boolean?  @default(false)
+  sent_at    DateTime? @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model order_items {
+  id                 Int               @id @default(autoincrement())
+  order_id           Int?
+  product_variant_id Int?
+  quantity           Int?
+  price              Decimal?          @db.Decimal(10, 2)
+  orders             orders?           @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product_variants   product_variants? @relation(fields: [product_variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model orders {
+  id               Int             @id @default(autoincrement())
+  user_id          Int?
+  discount_code_id Int?
+  total_amount     Decimal?        @db.Decimal(10, 2)
+  status           String?         @default("pending") @db.VarChar(50)
+  shipping_address String?
+  created_at       DateTime?       @default(now()) @db.Timestamp(6)
+  order_items      order_items[]
+  discount_codes   discount_codes? @relation(fields: [discount_code_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users            users?          @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model product_images {
+  id         Int       @id @default(autoincrement())
+  product_id Int?
+  image_url  String?
+  alt_text   String?
+  products   products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model product_variants {
+  id          Int           @id @default(autoincrement())
+  product_id  Int?
+  size        String?       @db.VarChar(10)
+  color       String?       @db.VarChar(50)
+  stock       Int?          @default(0)
+  sku         String?       @unique @db.VarChar(100)
+  cart_items  cart_items[]
+  order_items order_items[]
+  products    products?     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model products {
+  id               Int                @id @default(autoincrement())
+  name             String             @db.VarChar(255)
+  slug             String             @unique @db.VarChar(255)
+  description      String?
+  price            Decimal            @db.Decimal(10, 2)
+  category_id      Int?
+  brand            String?            @db.VarChar(100)
+  gender           String?            @db.VarChar(10)
+  attributes       Json?
+  created_at       DateTime?          @default(now()) @db.Timestamp(6)
+  product_images   product_images[]
+  product_variants product_variants[]
+  categories       categories?        @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviews          reviews[]
+  wishlists        wishlists[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model reviews {
+  id         Int       @id @default(autoincrement())
+  user_id    Int?
+  product_id Int?
+  rating     Int?
+  comment    String?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @db.Timestamp(6)
+  products   products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model users {
+  id                Int              @id @default(autoincrement())
+  email             String           @unique @db.VarChar(150)
+  password_hash     String
+  name              String?          @db.VarChar(100)
+  avatar_url        String?
+  phone             String?          @db.VarChar(20)
+  address           String?
+  is_email_verified Boolean?         @default(false)
+  is_admin          Boolean?         @default(false)
+  created_at        DateTime?        @default(now()) @db.Timestamp(6)
+  addresses         addresses[]
+  cart_items        cart_items[]
+  loyalty_points    loyalty_points[]
+  notifications     notifications[]
+  orders            orders[]
+  reviews           reviews[]
+  wishlists         wishlists[]
+}
+
+model wishlists {
+  id         Int       @id @default(autoincrement())
+  user_id    Int?
+  product_id Int?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  products   products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_408,c_limit/a3c971bc-bc0a-4c0c-8bdf-e807a3027e53/nike-just-do-it.jpg",
+    "category": "Running"
+  },
+  {
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_408,c_limit/e4695209-3f23-4a05-a9f9-d0edde31b653/nike-just-do-it.jpg",
+    "category": "Football"
+  },
+  {
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_408,c_limit/38ed4b8e-9cfc-4e66-9ddd-02a52314eed9/nike-just-do-it.jpg",
+    "category": "Basketball"
+  },
+  {
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_408,c_limit/e36a4a2b-4d3f-4d1c-bc75-d6057b7cec87/nike-just-do-it.jpg",
+    "category": "Training and gym"
+  },
+  {
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_408,c_limit/7ce96f81-bf80-45b9-918e-f2534f14015d/nike-just-do-it.jpg",
+    "category": "Tennis"
+  },
+  {
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_408,c_limit/6be55ac6-0243-42d6-87d0-a650074c658c/nike-just-do-it.jpg",
+    "category": "Yoga"
+  },
+  {
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_408,c_limit/608705dc-dea5-4450-b68f-e624cf1ed2a7/nike-just-do-it.jpg",
+    "category": "Skateboarding"
+  },
+  {
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_408,c_limit/c779e4f6-7d91-46c3-9282-39155e0819e5/nike-just-do-it.jpg",
+    "category": "Dance"
+  }
+]

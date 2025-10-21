@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Basketball",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_509,c_limit/11886c98-e7bd-47bd-afd7-ef2d0e9f1c36/nike-just-do-it.png"
+  },
+  {
+    "name": "Football",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_510,c_limit/a1333c28-e0b7-4f7d-b36e-bc3c96890609/nike-just-do-it.png"
+  },
+  {
+    "name": "Running",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_510,c_limit/19c7721d-8fc7-4176-8fe1-dc1743e11f19/nike-just-do-it.png"
+  },
+  {
+    "name": "Tennis",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_510,c_limit/2bc50e62-3184-41f2-bd04-e2a1d0f1baff/nike-just-do-it.png"
+  },
+  {
+    "name": "Golf",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_509,c_limit/ea74f6f4-2a4b-429a-a9ac-761cb81b9f8d/nike-just-do-it.png"
+  },
+  {
+    "name": "Skateboarding",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_510,c_limit/0c96ec6d-7870-4e62-a44c-4857e403dffd/nike-just-do-it.jpg"
+  }
+]

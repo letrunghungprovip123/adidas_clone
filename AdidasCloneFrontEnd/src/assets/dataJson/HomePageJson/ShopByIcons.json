@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Blazer",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_1440,c_limit/341f94f2-53c9-4195-ad45-62ea41cdad53/nike-just-do-it.png"
+  },
+  {
+    "name": "Dunk",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_1440,c_limit/b16447ee-d083-434c-b012-ffa6f08ced7a/nike-just-do-it.png"
+  },
+  {
+    "name": "Cortez",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_1440,c_limit/4b8054b2-b2f7-4c90-849f-83294a6f51d9/nike-just-do-it.png"
+  },
+  {
+    "name": "Air Jordan 1",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_1440,c_limit/de86e5d8-b6ad-467a-8acc-566b7d4ffebf/nike-just-do-it.png"
+  },
+  {
+    "name": "Air Max",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_1440,c_limit/bad15422-d2ad-4212-824d-2ad34b2ee26f/nike-just-do-it.png"
+  },
+  {
+    "name": "Pegasus",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_1440,c_limit/ef047e79-2b3b-4e68-ae94-460e0455b736/nike-just-do-it.png"
+  },
+  {
+    "name": "Vaporfly",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_1440,c_limit/c52dbab7-cde5-4417-8f57-40777bf0de76/nike-just-do-it.png"
+  },
+  {
+    "name": "Mercurial",
+    "image": "https://static.nike.com/a/images/f_auto/dpr_2.0,cs_srgb/h_1440,c_limit/254849bd-b20b-46ea-87c0-2b785bb3e27c/nike-just-do-it.png"
+  }
+]

@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+
+@font-face {
+  font-family: 'HerticalNor';
+  src: url('./assets/font/HelveticaNowText.woff2') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'HerticalMedium';
+  src: url('./assets/font/HelveticaNowTextMedium.woff2') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'NikeFont';
+  src: url('./assets/font/Nike-Futura.woff2') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+body {
+  font-family: '', sans-serif;
+}
