@@ -5,6 +5,7 @@ import HomePage from "../page/HomePage";
 import { path } from "../common/path/path";
 import ListProductPage from "../page/ListProductPage";
 import DetailProductPage from "../page/DetailProductPage";
+import FavouriteProductPage from "../page/FavouriteProductPage";
 
 const useRoutesCustom = () => {
   const routes = useRoutes([
@@ -18,6 +19,9 @@ const useRoutesCustom = () => {
           path: `${path.detailProductPage}/:id`,
           element: <DetailProductPage />,
         },
+        {
+          path:path.favouriteProductPage,element : <FavouriteProductPage />
+        }
       ],
     },
   ]);
