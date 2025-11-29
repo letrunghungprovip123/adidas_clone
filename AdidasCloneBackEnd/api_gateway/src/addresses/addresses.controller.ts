@@ -11,6 +11,7 @@ import {
   BadRequestException,
   NotFoundException,
   Put,
+  HttpException,
 } from '@nestjs/common';
 import { AddressesService } from './addresses.service';
 import { CreateAddressDto } from './dto/create-address.dto';
@@ -24,21 +25,26 @@ import { AddressDTO } from './dto/address.dto';
 export class AddressesController {
   constructor(
     @Inject('USER_SERVICE') private readonly userServiceClient: ClientProxy,
-  ) {}
+  ) { }
 
-  @Get('getAddresses')
+  @Get('addresses')
   async getAddresses(): Promise<AddressDTO> {
     try {
-      const addressResult = await lastValueFrom(
+      return await lastValueFrom(
         this.userServiceClient.send(
           { cmd: RMQ_PATTERN_ADDRESS.GET_ADDRESSES },
           {},
         ),
       );
-      return addressResult;
     } catch (error) {
-      console.error('Service error:', error);
-      throw new InternalServerErrorException('User service failed');
+      console.error('RMQ error:', error);
+
+      // Kiểm tra lỗi từ microservice (RpcException)
+      if (error?.statusCode) {
+        throw new HttpException(error.message, error.statusCode);
+      }
+
+      throw new InternalServerErrorException('Lỗi khi gọi user service');
     }
   }
 
