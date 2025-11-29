@@ -89,30 +89,21 @@ export class AddressesController {
   }
 
 
-  @Delete('deleteAddresses/:id')
+  @Delete('addresses/:id')
   async deleteAddresses(@Param('id') id: number) {
     try {
-      let result = await lastValueFrom(
+      return await lastValueFrom(
         this.userServiceClient.send(
           { cmd: RMQ_PATTERN_ADDRESS.DELETE_ADDRESS },
           id,
         ),
       );
-      return result;
     } catch (error) {
-      if (error && typeof error === 'object' && error.statusCode) {
-        switch (error.statusCode) {
-          case 400:
-            throw new BadRequestException(error.message);
-          case 404:
-            throw new NotFoundException(error.message);
-          // các trường hợp khác nếu cần
-          default:
-            throw new InternalServerErrorException(error.message);
-        }
+      if (error?.statusCode) {
+        throw new HttpException(error.message, error.statusCode);
       }
-
       throw new InternalServerErrorException('User service failed');
     }
   }
+
 }
