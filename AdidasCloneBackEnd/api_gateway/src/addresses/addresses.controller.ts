@@ -48,32 +48,24 @@ export class AddressesController {
     }
   }
 
-  @Post('createAddresses')
-  async createAddresses(@Body() address: CreateAddressDto) {
+  @Post('addresses')
+  async createAddresses(@Body() dto: CreateAddressDto) {
     try {
-      const addressResult = await lastValueFrom(
+      return await lastValueFrom(
         this.userServiceClient.send(
           { cmd: RMQ_PATTERN_ADDRESS.POST_ADDRESS },
-          address,
+          dto,
         ),
       );
-      return addressResult;
     } catch (error) {
-      if (error && typeof error === 'object' && error.statusCode) {
-        switch (error.statusCode) {
-          case 400:
-            throw new BadRequestException(error.message);
-          case 404:
-            throw new NotFoundException(error.message);
-          // các trường hợp khác nếu cần
-          default:
-            throw new InternalServerErrorException(error.message);
-        }
+      if (error?.statusCode) {
+        throw new HttpException(error.message, error.statusCode);
       }
 
       throw new InternalServerErrorException('User service failed');
     }
   }
+
 
   @Put('updateAddresses/:id')
   async updateAddresses(
