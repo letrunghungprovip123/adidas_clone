@@ -6,7 +6,7 @@ import { UpdateAddressDto } from './dto/update-address.dto';
 
 @Injectable()
 export class AddressesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAddresses() {
     try {
@@ -26,36 +26,29 @@ export class AddressesService {
   }
 
   async createAddresses(data: CreateAddressDto) {
-    console.log(data);
     try {
-      let checkUser = await this.prisma.users.findFirst({
-        where: {
-          id: data.user_id,
-        },
-      });
-      if (!checkUser)
-        throw new RpcException({ statusCode: 404, message: 'User ko tồn tại' });
+      const address = await this.prisma.addresses.create({ data });
 
-      let addresses = await this.prisma.addresses.create({
-        data,
-      });
       return {
         message: 'Tạo address thành công',
-        address: addresses,
+        address,
       };
     } catch (error) {
-      console.error('Error:', error);
-      // Nếu error đã là RpcException chứa statusCode, giữ nguyên
-      if (error instanceof RpcException) {
-        throw error;
+      // Lỗi khóa ngoại: user_id không tồn tại
+      if (error.code === 'P2003') {
+        throw new RpcException({
+          statusCode: 404,
+          message: 'User không tồn tại',
+        });
       }
-      // Mặc định lỗi server
+
       throw new RpcException({
         statusCode: 500,
         message: error.message || 'Lỗi hệ thống',
       });
     }
   }
+
 
   async updateAddresses(id: number, address: UpdateAddressDto) {
     try {
