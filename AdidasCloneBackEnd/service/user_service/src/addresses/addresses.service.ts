@@ -10,21 +10,28 @@ export class AddressesService {
 
   async getAddresses() {
     try {
-      let addresses = await this.prisma.addresses.findMany();
+      const addresses = await this.prisma.addresses.findMany();
+
       return {
         message: 'Lấy address thành công',
         data: addresses,
       };
     } catch (error) {
-      console.error('Error fetching users:', error.message);
+      // Lỗi Prisma (database)
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        throw new RpcException({
+          statusCode: 500,
+          message: 'Lỗi database khi fetch address',
+        });
+      }
 
-      return {
-        message: 'Lỗi server',
-        error: error.message,
-      };
+      // Lỗi hệ thống
+      throw new RpcException({
+        statusCode: 500,
+        message: error.message || 'Lỗi server',
+      });
     }
   }
-
   async createAddresses(data: CreateAddressDto) {
     try {
       const address = await this.prisma.addresses.create({ data });
