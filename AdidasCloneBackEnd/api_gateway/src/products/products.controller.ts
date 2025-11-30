@@ -25,23 +25,23 @@ export class ProductsController {
   constructor(
     @Inject('PRODUCT_SERVICE')
     private readonly productServiceClient: ClientProxy,
-  ) {}
+  ) { }
 
   @Get('getProducts')
   async getProducts() {
     try {
-      const result = await lastValueFrom(
+      return await lastValueFrom<any>(
         this.productServiceClient.send(
           { cmd: RMQ_PATTERN_PRODUCTS.GET_PRODUCT },
-          {},
-        ),
+          {}
+        )
       );
-      return result;
     } catch (error) {
-      console.error('Service error:', error);
-      throw new InternalServerErrorException('User service failed');
+      console.error('Product service error:', error);
+      throw new InternalServerErrorException('Product service failed');
     }
   }
+
 
   @Get('getProductId/:id')
   async getProductID(@Param('id', ParseIntPipe) id: any) {
