@@ -68,20 +68,20 @@ export class ProductsController {
 
 
   @Post('createProduct')
-  async createProduct(@Body() product: any) {
+  async createProduct(@Body() productDto: CreateProductDto) {
     try {
-      const result = await lastValueFrom(
+      return await lastValueFrom(
         this.productServiceClient.send(
           { cmd: RMQ_PATTERN_PRODUCTS.CREATE_PRODUCT },
-          product,
-        ),
+          productDto
+        )
       );
-      return result;
     } catch (error) {
-      console.error('Service error:', error);
-      throw new InternalServerErrorException('User service failed');
+      console.error('Product service error:', error);
+      throw new InternalServerErrorException('Product service failed');
     }
   }
+
 
   @Post('createProductVariant')
   async createProductVariant(@Body() body: any) {
