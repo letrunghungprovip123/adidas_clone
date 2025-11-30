@@ -44,31 +44,28 @@ export class ProductsController {
 
 
   @Get('getProductId/:id')
-  async getProductID(@Param('id', ParseIntPipe) id: any) {
+  async getProductID(@Param('id', ParseIntPipe) id: number) {
     try {
-      const result = await lastValueFrom(
+      return await lastValueFrom(
         this.productServiceClient.send(
           { cmd: RMQ_PATTERN_PRODUCTS.GET_PRODUCT_ID },
           id,
-        ),
+        )
       );
-      return result;
-    } catch (error) {
-      if (error && typeof error === 'object' && error.statusCode) {
-        switch (error.statusCode) {
-          case 400:
-            throw new BadRequestException(error.message);
-          case 404:
-            throw new NotFoundException(error.message);
-          // các trường hợp khác nếu cần
-          default:
-            throw new InternalServerErrorException(error.message);
-        }
+    } catch (error: any) {
+      const map = {
+        400: BadRequestException,
+        404: NotFoundException,
+      };
+
+      if (error?.statusCode && map[error.statusCode]) {
+        throw new map[error.statusCode](error.message);
       }
 
-      throw new InternalServerErrorException('User service failed');
+      throw new InternalServerErrorException('Product service failed');
     }
   }
+
 
   @Post('createProduct')
   async createProduct(@Body() product: any) {
