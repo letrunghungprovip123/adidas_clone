@@ -136,27 +136,23 @@ export class ProductsController {
   @Delete('deleteProduct/:id')
   async deleteProduct(@Param('id', ParseIntPipe) id: number) {
     try {
-      const result = await lastValueFrom(
+      return await lastValueFrom(
         this.productServiceClient.send(
           { cmd: RMQ_PATTERN_PRODUCTS.DELETE_PRODUCT },
-          id,
-        ),
+          id
+        )
       );
-      return result;
-    } catch (error) {
-      if (error && typeof error === 'object' && error.statusCode) {
+    } catch (error: any) {
+      if (error?.statusCode) {
         switch (error.statusCode) {
-          case 400:
-            throw new BadRequestException(error.message);
-          case 404:
-            throw new NotFoundException(error.message);
-          // các trường hợp khác nếu cần
-          default:
-            throw new InternalServerErrorException(error.message);
+          case 400: throw new BadRequestException(error.message);
+          case 404: throw new NotFoundException(error.message);
+          default: throw new InternalServerErrorException(error.message);
         }
       }
 
-      throw new InternalServerErrorException('User service failed');
+      throw new InternalServerErrorException('Product service failed');
     }
   }
+
 }
