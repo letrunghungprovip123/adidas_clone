@@ -1,25 +1,19 @@
 import { ClientProviderOptions, Transport } from '@nestjs/microservices';
 
-export const USER_SERVICE: ClientProviderOptions = {
-  name: 'USER_SERVICE',
+const createRMQService = (
+  name: string,
+  queue: string,
+): ClientProviderOptions => ({
+  name,
   transport: Transport.RMQ,
   options: {
     urls: ['amqp://admin:1234@localhost:5672'],
-    queue: 'user_queue',
+    queue,
     queueOptions: {
       durable: false,
     },
   },
-};
+});
 
-export const PRODUCT_SERVICE: ClientProviderOptions = {
-  name: 'PRODUCT_SERVICE',
-  transport: Transport.RMQ,
-  options: {
-    urls: ['amqp://admin:1234@localhost:5672'],
-    queue: 'product_queue',
-    queueOptions: {
-      durable: false,
-    },
-  },
-};
+export const USER_SERVICE = createRMQService('USER_SERVICE', 'user_queue');
+export const PRODUCT_SERVICE = createRMQService('PRODUCT_SERVICE', 'product_queue');
