@@ -68,15 +68,18 @@ export class UserController {
   @Post('addUser')
   async addUser(@Body() user: CreateUserDto) {
     try {
-      const result = await lastValueFrom(
-        this.userServiceClient.send({ cmd: RMQ_PATTERN_USER.POST_USER }, user),
+      return await lastValueFrom<any>(
+        this.userServiceClient.send(
+          { cmd: RMQ_PATTERN_USER.POST_USER },
+          user
+        )
       );
-      return result;
     } catch (error) {
-      console.error('Service error:', error);
+      console.error('User service error:', error);
       throw new InternalServerErrorException('User service failed');
     }
   }
+
 
   @Put('updateUser/:id')
   async updateUser(
