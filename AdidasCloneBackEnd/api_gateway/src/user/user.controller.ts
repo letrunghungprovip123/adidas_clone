@@ -24,25 +24,23 @@ import { RMQ_PATTERN_USER } from 'src/common/constants/rmq.pattern';
 export class UserController {
   constructor(
     @Inject('USER_SERVICE') private readonly userServiceClient: ClientProxy,
-  ) {}
+  ) { }
 
   @Get('getUsers')
   async getUser() {
     try {
-      const userResult = await lastValueFrom(
+      return await lastValueFrom<any>(
         this.userServiceClient.send(
           { cmd: 'demo_key' },
-          {
-            message: 'Gửi request tới thành công',
-          },
-        ),
+          { message: 'Gửi request tới thành công' }
+        )
       );
-      return userResult;
     } catch (error) {
-      console.error('Service error:', error);
+      console.error('User service error:', error);
       throw new InternalServerErrorException('User service failed');
     }
   }
+
   @Get('getUserId/:id')
   async getUserId(@Param('id', ParseIntPipe) id: number) {
     try {
