@@ -41,8 +41,8 @@ pipeline {
                     string(credentialsId: 'STRIPE_SECRET_KEY', variable: 'STRIPE_SECRET_KEY')
                 ]) {
 
-                    sh '''
-                    echo ">>> Creating ENV files for microservices..."
+                    sh """
+                    echo '>>> Creating ENV files for microservices...'
 
                     # ======================================
                     # API GATEWAY ENV
@@ -80,7 +80,23 @@ EOF
 PORT=3003
 STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY
 EOF
-                    '''
+                    """
+                }
+            }
+        }
+
+        /* ==========================
+            COPY FIREBASE ADMIN KEY
+        ===========================*/
+        stage('Setup Firebase Key') {
+            steps {
+                withCredentials([
+                    file(credentialsId: 'FIREBASE_ADMIN_KEY', variable: 'FIREBASE_KEY')
+                ]) {
+                    sh """
+                    echo '>>> Copy firebase-admin-key.json for user_service'
+                    cp "\$FIREBASE_KEY" AdidasCloneBackEnd/service/user_service/firebase-admin-key.json
+                    """
                 }
             }
         }
@@ -104,7 +120,7 @@ EOF
         stage('Stop Old Services') {
             steps {
                 sh """
-                    echo "--- Stopping existing services ---"
+                    echo '--- Stopping existing services ---'
                     ${COMPOSE_CMD} down || true
                 """
             }
@@ -116,16 +132,16 @@ EOF
         stage('Build backend services') {
             steps {
                 sh """
-                    echo "--- Building API Gateway ---"
+                    echo '--- Building API Gateway ---'
                     docker build -t adidas_api_gateway ./AdidasCloneBackEnd/api_gateway
 
-                    echo "--- Building Order Service ---"
+                    echo '--- Building Order Service ---'
                     docker build -t order_service ./AdidasCloneBackEnd/service/order_service
 
-                    echo "--- Building Product Service ---"
+                    echo '--- Building Product Service ---'
                     docker build -t product_service ./AdidasCloneBackEnd/service/product_service
 
-                    echo "--- Building User Service ---"
+                    echo '--- Building User Service ---'
                     docker build -t user_service ./AdidasCloneBackEnd/service/user_service
                 """
             }
@@ -137,7 +153,7 @@ EOF
         stage('Build frontend') {
             steps {
                 sh """
-                    echo "--- Building Frontend ---"
+                    echo '--- Building Frontend ---'
                     docker build -t adidas_frontend ./AdidasCloneFrontEnd
                 """
             }
@@ -149,7 +165,7 @@ EOF
         stage('Build admin') {
             steps {
                 sh """
-                    echo "--- Building Admin Page ---"
+                    echo '--- Building Admin Page ---'
                     docker build -t adidas_admin ./Admin_Template
                 """
             }
@@ -161,7 +177,7 @@ EOF
         stage('Deploy Services') {
             steps {
                 sh """
-                    echo "--- Deploying services with docker-compose.yml ---"
+                    echo '--- Deploying services with docker-compose.yml ---'
                     ${COMPOSE_CMD} up -d --build
                 """
             }
@@ -172,9 +188,13 @@ EOF
         POST ACTIONS
     ===========================*/
     post {
-        success { echo "🚀 CI/CD completed successfully!" }
+        success {
+            echo "🚀 CI/CD completed successfully!"
+        }
 
-        failure { echo "❌ Build failed!" }
+        failure {
+            echo "❌ Build failed!"
+        }
 
         always {
             echo "🧹 Cleaning unused docker resources..."
