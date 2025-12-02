@@ -16,12 +16,78 @@ pipeline {
 
     stages {
 
+        /* ==========================
+            1. CHECKOUT CODE
+        ===========================*/
         stage('Checkout Code') {
             steps {
                 checkout scm
             }
         }
 
+        /* ==========================
+            2. CREATE ENV FILES
+        ===========================*/
+        stage('Setup ENV Files') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
+                    string(credentialsId: 'EMAIL_PASS', variable: 'EMAIL_PASS'),
+                    string(credentialsId: 'EMAIL_USER', variable: 'EMAIL_USER'),
+                    string(credentialsId: 'GEMINI_API_KEY', variable: 'GEMINI_API_KEY'),
+                    string(credentialsId: 'CLOUDINARY_CLOUD_NAME', variable: 'CLOUDINARY_CLOUD_NAME'),
+                    string(credentialsId: 'CLOUDINARY_API_KEY', variable: 'CLOUDINARY_API_KEY'),
+                    string(credentialsId: 'CLOUDINARY_API_SECRET', variable: 'CLOUDINARY_API_SECRET'),
+                    string(credentialsId: 'STRIPE_SECRET_KEY', variable: 'STRIPE_SECRET_KEY')
+                ]) {
+
+                    sh '''
+                    echo ">>> Creating ENV files for microservices..."
+
+                    # ======================================
+                    # API GATEWAY ENV
+                    # ======================================
+                    cat <<EOF > AdidasCloneBackEnd/api_gateway/.env
+PORT=3000
+JWT_SECRET=$JWT_SECRET
+EMAIL_USER=$EMAIL_USER
+EMAIL_PASS=$EMAIL_PASS
+EOF
+
+                    # ======================================
+                    # USER SERVICE ENV
+                    # ======================================
+                    cat <<EOF > AdidasCloneBackEnd/service/user_service/.env
+PORT=3002
+JWT_SECRET=$JWT_SECRET
+EOF
+
+                    # ======================================
+                    # PRODUCT SERVICE ENV
+                    # ======================================
+                    cat <<EOF > AdidasCloneBackEnd/service/product_service/.env
+PORT=3001
+GEMINI_API_KEY=$GEMINI_API_KEY
+CLOUDINARY_CLOUD_NAME=$CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY=$CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET=$CLOUDINARY_API_SECRET
+EOF
+
+                    # ======================================
+                    # ORDER SERVICE ENV
+                    # ======================================
+                    cat <<EOF > AdidasCloneBackEnd/service/order_service/.env
+PORT=3003
+STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY
+EOF
+                    '''
+                }
+            }
+        }
+
+        /* ==========================
+            3. VERIFY COMPOSE FILE
+        ===========================*/
         stage('Verify Compose File') {
             steps {
                 sh """
@@ -32,6 +98,9 @@ pipeline {
             }
         }
 
+        /* ==========================
+            4. STOP OLD SERVICES
+        ===========================*/
         stage('Stop Old Services') {
             steps {
                 sh """
@@ -41,6 +110,9 @@ pipeline {
             }
         }
 
+        /* ==========================
+            5. BUILD BACKEND SERVICES
+        ===========================*/
         stage('Build backend services') {
             steps {
                 sh """
@@ -59,6 +131,9 @@ pipeline {
             }
         }
 
+        /* ==========================
+            6. BUILD FRONTEND
+        ===========================*/
         stage('Build frontend') {
             steps {
                 sh """
@@ -68,6 +143,9 @@ pipeline {
             }
         }
 
+        /* ==========================
+            7. BUILD ADMIN PANEL
+        ===========================*/
         stage('Build admin') {
             steps {
                 sh """
@@ -77,6 +155,9 @@ pipeline {
             }
         }
 
+        /* ==========================
+            8. DEPLOY SERVICES
+        ===========================*/
         stage('Deploy Services') {
             steps {
                 sh """
@@ -87,9 +168,14 @@ pipeline {
         }
     }
 
+    /* ==========================
+        POST ACTIONS
+    ===========================*/
     post {
         success { echo "🚀 CI/CD completed successfully!" }
+
         failure { echo "❌ Build failed!" }
+
         always {
             echo "🧹 Cleaning unused docker resources..."
             sh "docker system prune -f || true"
