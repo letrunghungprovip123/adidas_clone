@@ -1,31 +1,18 @@
 import React from "react";
 import data from "../../assets/dataJson/HomePageJson/ShopBySport.json";
+
 const ShopBySport = () => {
-  console.log(data);
   return (
-    <div className="my-[84px] mx-[48px]">
-      <div className="px-[6px]">
-        <div className="flex justify-between px-[48px] mb-[12px]">
-          <div>
-            <h2 className="text-[24px]">Shop by Sport</h2>
+    <div className="mt-20 max-w-7xl mx-auto px-4">
+      <h2 className="text-2xl mb-6">Shop by Sport</h2>
+
+      <div className="flex overflow-x-auto gap-6 pb-4">
+        {data.map((item, index) => (
+          <div key={index} className="min-w-[350px]">
+            <img src={item.image} alt="" className="rounded-lg" />
+            <p className="mt-4 text-lg">{item.name}</p>
           </div>
-        </div>
-        <ul className="pl-[48px] pb-[30px] overflow-x-auto flex">
-          {data.map((item, index) => {
-            return (
-              <li className="pr-[12px]">
-                <figure className="min-w-[410px]">
-                  <div>
-                    <img className="" src={item.image} alt="" />
-                  </div>
-                  <div className="mt-[36px]">
-                    <span className="text-[20px]">{item.name}</span>
-                  </div>
-                </figure>
-              </li>
-            );
-          })}
-        </ul>
+        ))}
       </div>
     </div>
   );

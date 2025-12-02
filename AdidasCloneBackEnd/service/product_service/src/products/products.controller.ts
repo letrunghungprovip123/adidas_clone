@@ -45,14 +45,49 @@ export class ProductsController {
 
   @MessagePattern({ cmd: RMQ_PATTERN_PRODUCTS.DELETE_PRODUCT })
   async deleteProduct(@Payload() id: any) {
-    const response = await this.productsService.createProduct(+id);
+    const response = await this.productsService.deleteProduct(+id);
     return response;
   }
 
+  @MessagePattern({ cmd: RMQ_PATTERN_PRODUCTS.CREATE_PRODUCT_VARIANT })
+  async createProductVariant(@Payload() data: any) {
+    const response = await this.productsService.createProductVariant(data);
+    return response;
+  }
 
-  @MessagePattern({cmd : RMQ_PATTERN_PRODUCTS.CREATE_PRODUCT_VARIANT})
-  async createProductVariant(@Payload() data : any){
-    const response = await this.productsService.createProductVariant(data)
-    return response
+  @MessagePattern({ cmd: RMQ_PATTERN_PRODUCTS.UPDATE_PRODUCT_VARIANT })
+  async updateProductVariant(@Payload() data: any) {
+    const { body, id } = data;
+    const response = await this.productsService.updateProductVariant(body, +id);
+    return response;
+  }
+
+  @MessagePattern({ cmd: RMQ_PATTERN_PRODUCTS.ADD_PRODUCT_IMAGE })
+  async uploadImageCloudinary(@Payload() data: any) {
+    const { payload, body } = data;
+    const response = await this.productsService.uploadImageCloudinary(
+      payload,
+      body,
+    );
+    return response;
+  }
+
+  @MessagePattern({ cmd: RMQ_PATTERN_PRODUCTS.GET_PAGINATED })
+  async getPaginatedProducts(@Payload() data: any) {
+    return this.productsService.filterProducts(data);
+  }
+
+  @MessagePattern({ cmd: RMQ_PATTERN_PRODUCTS.SEARCH })
+  async searchProducts(@Payload() data: any) {
+    return this.productsService.searchProducts(data);
+  }
+  @MessagePattern({ cmd: RMQ_PATTERN_PRODUCTS.GET_BY_CATEGORY })
+  async getProductsByCategory(@Payload() data: any) {
+    return this.productsService.getProductsByCategory(data);
+  }
+
+  @MessagePattern({ cmd: RMQ_PATTERN_PRODUCTS.AI_SUGGESTION })
+  async aiSuggestion(@Payload() data: any) {
+    return this.productsService.aiSuggestion(data);
   }
 }

@@ -11,6 +11,8 @@ import {
   Put,
   BadRequestException,
   NotFoundException,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { LoyaltyPointService } from './loyalty_point.service';
 import { CreateLoyaltyPointDto } from './dto/create-loyalty_point.dto';
@@ -18,6 +20,7 @@ import { UpdateLoyaltyPointDto } from './dto/update-loyalty_point.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { RMQ_PATTERN_LOYALTY_POINT } from 'src/common/constants/rmq.pattern';
 import { lastValueFrom } from 'rxjs';
+import { JwtAuthGuard } from 'src/strategy/jwt-auth.guard';
 
 @Controller('loyalty-point')
 export class LoyaltyPointController {
@@ -25,13 +28,15 @@ export class LoyaltyPointController {
     @Inject('USER_SERVICE') private readonly loyaltyPointService: ClientProxy,
   ) {}
 
-  @Get('getLoyalty')
-  async getLoyalty() {
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getMyLoyalty(@Request() req) {
     try {
-      let result = await lastValueFrom(
+      const userId = req.user.id;
+      const result = await lastValueFrom(
         this.loyaltyPointService.send(
           { cmd: RMQ_PATTERN_LOYALTY_POINT.GET_LOYALTY },
-          {},
+          { user_id: userId }, // gửi user_id đến service
         ),
       );
       return result;
@@ -41,13 +46,14 @@ export class LoyaltyPointController {
     }
   }
 
-  @Post('createLoyalty')
-  async createLoyalty(@Body() data: any) {
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  async createLoyalty(@Body() body: any, @Request() req) {
     try {
       const result = await lastValueFrom(
         this.loyaltyPointService.send(
           { cmd: RMQ_PATTERN_LOYALTY_POINT.CREATE_LOYALTY },
-          data,
+          { user_id: req.user.id, body },
         ),
       );
       return result;
@@ -57,36 +63,35 @@ export class LoyaltyPointController {
     }
   }
 
-  @Put('updateLoyalty/:id')
-  async updateLoyalty(@Param('id') id: number, @Body() data: any) {
+  @UseGuards(JwtAuthGuard)
+  @Patch()
+  async updateMyLoyalty(@Body() body: any, @Request() req) {
     try {
+      const userId = req.user.id;
       const result = await lastValueFrom(
         this.loyaltyPointService.send(
-          {
-            cmd: RMQ_PATTERN_LOYALTY_POINT.UPDATE_LOYALTY,
-          },
-          { id, data },
+          { cmd: RMQ_PATTERN_LOYALTY_POINT.UPDATE_LOYALTY },
+          { user_id: userId, data: body },
         ),
       );
       return result;
     } catch (error) {
+      console.error('Service error:', error);
       if (error && typeof error === 'object' && error.statusCode) {
         switch (error.statusCode) {
           case 400:
             throw new BadRequestException(error.message);
           case 404:
             throw new NotFoundException(error.message);
-          // các trường hợp khác nếu cần
           default:
             throw new InternalServerErrorException(error.message);
         }
       }
-
       throw new InternalServerErrorException('User service failed');
     }
   }
 
-  @Delete('deleteLoyalty/:id')
+  @Delete()
   async deleteLoyalty(@Param('id') id: number) {
     try {
       const result = await lastValueFrom(

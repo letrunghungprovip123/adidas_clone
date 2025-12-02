@@ -12,6 +12,8 @@ import {
   ParseIntPipe,
   BadRequestException,
   NotFoundException,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -19,14 +21,15 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { RMQ_PATTERN_USER } from 'src/common/constants/rmq.pattern';
+import { JwtAuthGuard } from 'src/strategy/jwt-auth.guard';
 
-@Controller('user')
+@Controller('users')
 export class UserController {
   constructor(
     @Inject('USER_SERVICE') private readonly userServiceClient: ClientProxy,
   ) {}
 
-  @Get('getUsers')
+  @Get()
   async getUser() {
     try {
       const userResult = await lastValueFrom(
@@ -43,11 +46,16 @@ export class UserController {
       throw new InternalServerErrorException('User service failed');
     }
   }
-  @Get('getUserId/:id')
-  async getUserId(@Param('id', ParseIntPipe) id: number) {
+
+  @UseGuards(JwtAuthGuard)
+  @Get('/getById')
+  async getUserId(@Request() req) {
     try {
       const result = await lastValueFrom(
-        this.userServiceClient.send({ cmd: RMQ_PATTERN_USER.GET_USER_ID }, id),
+        this.userServiceClient.send(
+          { cmd: RMQ_PATTERN_USER.GET_USER_ID },
+          req.user.id,
+        ),
       );
       return result;
     } catch (error) {
@@ -67,7 +75,7 @@ export class UserController {
     }
   }
 
-  @Post('addUser')
+  @Post()
   async addUser(@Body() user: CreateUserDto) {
     try {
       const result = await lastValueFrom(
@@ -80,7 +88,7 @@ export class UserController {
     }
   }
 
-  @Put('updateUser/:id')
+  @Patch(':id')
   async updateUser(
     @Body() user: UpdateUserDto,
     @Param('id', ParseIntPipe) id: number,
@@ -110,7 +118,7 @@ export class UserController {
     }
   }
 
-  @Delete('deleteUser/:id')
+  @Delete(':id')
   async deleteUser(@Param('id', ParseIntPipe) id: number) {
     try {
       const result = await lastValueFrom(

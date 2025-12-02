@@ -1,0 +1,222 @@
+# version: '3.8'
+
+services:
+  # ====================================
+  # =========== PostgreSQL =============
+  # ====================================
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - elk_net
+
+  # ====================================
+  # ============ RabbitMQ ==============
+  # ====================================
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: 1234
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - elk_net
+
+  # ====================================
+  # ========== Elasticsearch ===========
+  # ====================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - adidasclonebackend_es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - elk_net
+
+  # ====================================
+  # ============== Kibana ==============
+  # ====================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    container_name: kibana
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+    networks:
+      - elk_net
+
+  # ====================================
+  # ============ API GATEWAY ============
+  # ====================================
+  api_gateway:
+    build:
+      context: ./AdidasCloneBackEnd/api_gateway
+      dockerfile: Dockerfile
+    container_name: adidas_api_gateway
+    restart: always
+    env_file:
+      - ./AdidasCloneBackEnd/api_gateway/.env
+    environment:
+      PORT: 3000
+      RABBITMQ_URL: amqp://admin:1234@rabbitmq:5672
+      DATABASE_URL: postgresql://postgres:123456@postgres:5432/mydb
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - rabbitmq
+      - user_service
+      - product_service
+      - order_service
+    networks:
+      - elk_net
+
+  # ====================================
+  # =========== ORDER SERVICE ===========
+  # ====================================
+  order_service:
+    build:
+      context: ./AdidasCloneBackEnd/service/order_service
+      dockerfile: Dockerfile
+    container_name: order_service
+    restart: always
+    env_file:
+      - ./AdidasCloneBackEnd/service/order_service/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:123456@postgres:5432/mydb
+      RABBITMQ_URL: amqp://admin:1234@rabbitmq:5672
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - elk_net
+
+  # ====================================
+  # ========== PRODUCT SERVICE ==========
+  # ====================================
+  product_service:
+    build:
+      context: ./AdidasCloneBackEnd/service/product_service
+      dockerfile: Dockerfile
+    container_name: product_service
+    restart: always
+    env_file:
+      - ./AdidasCloneBackEnd/service/product_service/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:123456@postgres:5432/mydb
+      RABBITMQ_URL: amqp://admin:1234@rabbitmq:5672
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    depends_on:
+      - postgres
+      - rabbitmq
+      - elasticsearch
+    networks:
+      - elk_net
+
+  # ====================================
+  # ============= USER SERVICE ==========
+  # ====================================
+  user_service:
+    build:
+      context: ./AdidasCloneBackEnd/service/user_service
+      dockerfile: Dockerfile
+    container_name: adidas_user_service
+    restart: always
+    env_file:
+      - ./AdidasCloneBackEnd/service/user_service/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:123456@postgres:5432/mydb
+      RABBITMQ_URL: amqp://admin:1234@rabbitmq:5672
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - elk_net
+
+
+
+  frontend:
+    build:
+      context: ./AdidasCloneFrontEnd
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: always
+    ports:
+      - "3001:80"
+    depends_on:
+      - api_gateway
+    networks:
+      - elk_net
+
+  # ====================================
+  # =============== ADMIN ===============
+  # ====================================
+  admin:
+    build:
+      context: ./Admin_Template
+      dockerfile: Dockerfile
+    container_name: admin
+    restart: always
+    ports:
+      - "3002:80"
+    depends_on:
+      - api_gateway
+    networks:
+      - elk_net
+  
+
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins
+    restart: always
+    user: root
+    ports:
+      - "8080:8080"       # Giao diện Jenkins
+      - "50000:50000"     # Kênh agent (để đó)
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      # Cho phép Jenkins chạy docker/docker-compose bên trong
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - elk_net
+
+
+# ====================================
+# Networks & Volumes
+# ====================================
+networks:
+  elk_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  adidasclonebackend_es_data:
+  jenkins_home:

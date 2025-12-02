@@ -11,6 +11,8 @@ import {
   BadRequestException,
   NotFoundException,
   Put,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { AddressesService } from './addresses.service';
 import { CreateAddressDto } from './dto/create-address.dto';
@@ -19,6 +21,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { RMQ_PATTERN_ADDRESS } from 'src/common/constants/rmq.pattern';
 import { AddressDTO } from './dto/address.dto';
+import { JwtAuthGuard } from 'src/strategy/jwt-auth.guard';
 
 @Controller('addresses')
 export class AddressesController {
@@ -42,13 +45,44 @@ export class AddressesController {
     }
   }
 
-  @Post('createAddresses')
-  async createAddresses(@Body() address: CreateAddressDto) {
+  @UseGuards(JwtAuthGuard)
+  @Get('byId')
+  async getAddressesByUserId(@Request() req: any) {
     try {
+      const userId = req.user.id; // LẤY TỪ JWT TOKEN
+
+      const result = await lastValueFrom(
+        this.userServiceClient.send(
+          { cmd: RMQ_PATTERN_ADDRESS.GET_BY_USER_ID },
+          { userId },
+        ),
+      );
+
+      return result;
+    } catch (error) {
+      if (error && typeof error === 'object' && error.statusCode) {
+        switch (error.statusCode) {
+          case 400:
+            throw new BadRequestException(error.message);
+          case 404:
+            throw new NotFoundException(error.message);
+          default:
+            throw new InternalServerErrorException(error.message);
+        }
+      }
+      throw new InternalServerErrorException('User service failed');
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  async createAddresses(@Body() address: CreateAddressDto, @Request() req) {
+    try {
+      console.log('Đã vào');
       const addressResult = await lastValueFrom(
         this.userServiceClient.send(
           { cmd: RMQ_PATTERN_ADDRESS.POST_ADDRESS },
-          address,
+          { address, userId: req.user.id },
         ),
       );
       return addressResult;
@@ -69,7 +103,7 @@ export class AddressesController {
     }
   }
 
-  @Put('updateAddresses/:id')
+  @Patch(':id')
   async updateAddresses(
     @Param('id') id: number,
     @Body() address: UpdateAddressDto,
@@ -99,7 +133,7 @@ export class AddressesController {
     }
   }
 
-  @Delete('deleteAddresses/:id')
+  @Delete(':id')
   async deleteAddresses(@Param('id') id: number) {
     try {
       let result = await lastValueFrom(

@@ -37,4 +37,8 @@ export class AddressesController {
     const response = await this.addressesService.deleteAddresses(+data);
     return response;
   }
+  @MessagePattern({ cmd: RMQ_PATTERN_ADDRESS.GET_BY_USER_ID })
+  async getAddressesByUserId(@Payload() data: { userId: number }) {
+    return this.addressesService.getAddressesByUserId(data.userId);
+  }
 }

@@ -8,16 +8,18 @@ import { RpcException } from '@nestjs/microservices';
 export class LoyaltyPointService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getLoyalty() {
+  async getLoyalty(user_id: number) {
     try {
-      let result = await this.prisma.loyalty_points.findMany();
-      return {
-        message: 'Lấy loyalty point thành công',
-        data: result,
-      };
+      const loyalty = await this.prisma.loyalty_points.findMany({
+        where: { user_id },
+      });
+      if (!loyalty)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Loyalty point của user không tồn tại',
+        });
+      return { message: 'Lấy loyalty point thành công', data: loyalty };
     } catch (error) {
-      console.error('Error fetching users:', error.message);
-
       return {
         message: 'Lỗi server',
         error: error.message,
@@ -25,11 +27,18 @@ export class LoyaltyPointService {
     }
   }
 
-  async createLoyalty(data: any) {
+  async createLoyalty(userId: any, body: any) {
     try {
-      console.log(data);
+      let checkUser = await this.prisma.users.findFirst({
+        where: { id: userId },
+      });
+      if (!checkUser)
+        throw new RpcException({
+          statusCode: 400,
+          message: 'User ko tồn tại',
+        });
       let result = await this.prisma.loyalty_points.create({
-        data,
+        data: { user_id: userId, points: body.points },
       });
       return { message: 'Tạo loyalty point thành công', data: result };
     } catch (error) {
@@ -40,45 +49,27 @@ export class LoyaltyPointService {
     }
   }
 
-  async updateLoyalty(body: any) {
+  async updateLoyalty({ user_id, data }: { user_id: number; data: any }) {
     try {
-      const { id, data } = body;
+      const loyalty = await this.prisma.loyalty_points.findFirst({
+        where: { user_id },
+      });
+      if (!loyalty)
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Loyalty point của user không tồn tại',
+        });
 
-      let checkID = await this.prisma.loyalty_points.findFirst({
-        where: { id: parseInt(id) },
-      });
-      if (!checkID)
-        throw new RpcException({
-          statusCode: 404,
-          message: 'Id loyalty ko tồn tại',
-        });
-      let checkUser = await this.prisma.users.findFirst({
-        where: { id: data.user_id },
-      });
-      if (!checkUser)
-        throw new RpcException({
-          statusCode: 404,
-          message: 'User ko tồn tại',
-        });
-      let result = await this.prisma.loyalty_points.update({
+      const updated = await this.prisma.loyalty_points.update({
+        where: { id: loyalty.id },
         data: { ...data },
-        where: { id: parseInt(id) },
       });
-      return {
-        message: 'Update loyalty thành công',
-        data: result,
-      };
+      return { message: 'Update loyalty thành công', data: updated };
     } catch (error) {
-      console.error('Error:', error);
-      // Nếu error đã là RpcException chứa statusCode, giữ nguyên
-      if (error instanceof RpcException) {
-        throw error;
-      }
-      // Mặc định lỗi server
-      throw new RpcException({
-        statusCode: 500,
-        message: error.message || 'Lỗi hệ thống',
-      });
+      return {
+        message: 'Lỗi server',
+        error: error.message,
+      };
     }
   }
 

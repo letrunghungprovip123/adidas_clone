@@ -7,11 +7,11 @@ async function bootstrap() {
     {
       transport: Transport.RMQ,
       options: {
-        urls: ['amqp://admin:1234@localhost:5672'],
-        queue : "user_queue",
-        queueOptions : {
-          durable : false
-        }
+        urls: ['amqp://admin:1234@rabbitmq:5672'],
+        queue: 'user_queue',
+        queueOptions: {
+          durable: false,
+        },
       },
     },
   );

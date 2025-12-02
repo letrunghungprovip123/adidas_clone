@@ -1,188 +1,422 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getProductById } from "../../api/productApi";
+import { getReviewByProduct, createReview } from "../../api/reviewApi";
+import { getStorage } from "../../utils/storages/getStorage";
+import { path } from "../../common/path/path";
 import Collapse from "../Collapse/Collapse";
+import { Sparkles, Wand2 } from "lucide-react";
+import { Spin, message, Rate, Input, Button, List, Avatar, Empty } from "antd";
+import { HeartIcon as HeartOutline } from "@heroicons/react/24/outline";
+import { HeartIcon as HeartSolid } from "@heroicons/react/24/solid";
+import { useCartStore } from "../../store/cartStore";
+import useUserStore from "../../store/userStore";
+import { useWishlistStore } from "../../store/wishlistStore";
 
-const GridDetailFirst = () => {
-  const image = [
-    "https://static.nike.com/a/images/t_default/782405ec-b1f8-4a32-b293-46c5b4a4a016/NIKE+P-6000.png",
-    "https://static.nike.com/a/images/t_default/abc3b671-e31e-44b6-8149-fb15739782c4/NIKE+P-6000.png",
-    "https://static.nike.com/a/images/t_default/5ba750e3-65ed-44cf-b270-61aa30413ae9/NIKE+P-6000.png",
-    "https://static.nike.com/a/images/t_default/d270b144-b141-4f69-bf0e-f29fef6f3bfe/NIKE+P-6000.png",
-    "https://static.nike.com/a/images/t_default/4833e92f-d97d-4f83-9829-c509ac945778/NIKE+P-6000.png",
-    "https://static.nike.com/a/images/t_default/5948400f-4a45-4c9f-af8b-b3cf228c25eb/NIKE+P-6000.png",
-    "https://static.nike.com/a/images/t_default/e398359f-8cac-4247-9f6d-3faf25a32e73/NIKE+P-6000.png",
-    "https://static.nike.com/a/images/t_default/8736c539-4ba2-4892-9600-9db3d6fbe8a5/NIKE+P-6000.png",
-    "https://static.nike.com/a/images/t_default/4fc1fbfc-ce64-460b-b5c9-ee49c6d7d888/NIKE+P-6000.png",
-  ];
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import "dayjs/locale/vi";
 
-  const sizes = [
-    38, 38.5, 39, 39.5, 40, 41, 41.5, 42, 42.5, 43, 43.5, 44, 44.5, 45, 45.5,
-    46, 46.5, 47,
-  ];
+dayjs.extend(relativeTime);
+dayjs.locale("vi");
 
-  const child = () => {
-    return (
-      <div
-        className="grid pb-[30px] text-[#111111] "
-      >
-        <div className="text-start text-[16px] font-light">
-          <p>Your order of 5.000.000₫ or more gets free standard delivery.</p>
-          <br />
-          <ul className="my-[16px] list-disc list-inside">
-            <li>Standard delivered 4-5 Business Days</li>
-            <li>Express delivered 2-4 Business Days</li>
-          </ul>
-          <br />
-          <p>
-            Orders are processed and delivered Monday-Friday (excluding public
-            holidays)
-          </p>
-          <br />
-          <p>
-            Nike Members enjoy <u className="underline">Free Returns</u>
-          </p>
+// =============================================================
+// =============== REVIEW SECTION — FULL VERSION ================
+// =============================================================
+const ReviewSection = ({ productId }) => {
+  const queryClient = useQueryClient();
+  const { user } = useUserStore();
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [messageApi, contextHolder] = message.useMessage();
+
+  const { data: reviews, isLoading } = useQuery({
+    queryKey: ["reviews", productId],
+    queryFn: () => getReviewByProduct(productId),
+  });
+
+  const mutation = useMutation({
+    mutationFn: createReview,
+    onSuccess: () => {
+      messageApi.success("Đã gửi đánh giá!");
+      setRating(0);
+      setComment("");
+      queryClient.invalidateQueries(["reviews", productId]);
+    },
+    onError: (err) => {
+      messageApi.error(
+        err.response?.data?.message || "Không thể gửi đánh giá."
+      );
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!user) return messageApi.warning("Vui lòng đăng nhập để đánh giá");
+    if (!rating) return messageApi.warning("Vui lòng chọn số sao");
+
+    mutation.mutate({
+      product_id: Number(productId),
+      rating,
+      comment,
+      user_id: user.id,
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      {contextHolder}
+
+      {/* FORM */}
+      <div className="p-4 border rounded-lg bg-gray-50">
+        <h4 className="font-semibold mb-2 text-[16px]">
+          Viết đánh giá của bạn
+        </h4>
+        <Rate value={rating} onChange={setRating} />
+        <Input.TextArea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Chia sẻ cảm nhận..."
+          rows={3}
+          className="mt-2"
+        />
+        <Button
+          type="primary"
+          onClick={handleSubmit}
+          loading={mutation.isPending}
+          className="mt-3"
+        >
+          Gửi đánh giá
+        </Button>
+      </div>
+
+      {/* LIST */}
+      {isLoading ? (
+        <div className="text-center py-4">
+          <Spin />
         </div>
+      ) : reviews && reviews.length > 0 ? (
+        <List
+          itemLayout="horizontal"
+          dataSource={reviews}
+          renderItem={(item) => (
+            <List.Item>
+              <List.Item.Meta
+                avatar={
+                  <Avatar src={item.user?.avatar}>
+                    {item.user?.name?.charAt(0) || "U"}
+                  </Avatar>
+                }
+                title={
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{item.user?.name}</span>
+                    <Rate disabled value={item.rating} />
+                    <span className="text-xs text-gray-500">
+                      {dayjs(item.created_at).fromNow()}
+                    </span>
+                  </div>
+                }
+                description={item.comment}
+              />
+            </List.Item>
+          )}
+        />
+      ) : (
+        <Empty description="Chưa có đánh giá nào" />
+      )}
+    </div>
+  );
+};
+
+// =============================================================
+// ==================== PRODUCT DETAIL PAGE ====================
+// =============================================================
+const GridDetailFirst = ({ aiMutation }) => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { addItem } = useCartStore();
+  const queryClient = useQueryClient();
+
+  const [selectedSize, setSelectedSize] = useState(null);
+  const [selectedColor, setSelectedColor] = useState(null);
+  const [mainImage, setMainImage] = useState("");
+
+  const [messageApi, contextHolder] = message.useMessage();
+
+  // Wishlist store
+  const {
+    exists,
+    addItem: addWish,
+    removeItem: removeWish,
+  } = useWishlistStore();
+  const isWishlisted = exists(id);
+
+  // Query product
+  const {
+    data: product,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["product", id],
+    queryFn: () => getProductById(id),
+    select: (res) => res.data,
+  });
+
+  // AI button
+  const handleClickAI = () => {
+    aiMutation.mutate({
+      name: product.name,
+      description: product.description,
+    });
+  };
+
+  const isLoadingAI = aiMutation.isPending;
+
+  // Wishlist Buttons
+  const toggleWishlist = async () => {
+    const token = getStorage("access_token");
+    if (!token) {
+      messageApi.warning("Vui lòng đăng nhập để thêm vào yêu thích");
+      return navigate(path.signInPage);
+    }
+
+    if (isWishlisted) {
+      await removeWish(Number(id));
+      messageApi.success("Đã xóa khỏi yêu thích");
+    } else {
+      await addWish(Number(id));
+      messageApi.success("Đã thêm vào yêu thích");
+    }
+  };
+
+  // Set main image
+  useEffect(() => {
+    if (product?.product_images?.length > 0) {
+      setMainImage(product.product_images[0].image_url);
+    }
+  }, [product]);
+
+  if (isLoading)
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Spin size="large" />
       </div>
     );
-  };
+
+  if (!product)
+    return (
+      <div className="text-center py-20 text-red-500">
+        Không thể tải sản phẩm
+      </div>
+    );
+
+  // Colors
+  const colors = [...new Set(product.product_variants.map((v) => v.color))];
+
+  // Filter sizes by color
+  const filteredSizes = selectedColor
+    ? product.product_variants.filter((v) => v.color === selectedColor)
+    : [];
+
+  const images = product.product_images.map((img) => img.image_url);
+
+  const price = `${Number(product.price).toLocaleString("vi-VN")}₫`;
+  const name = product.name;
+  const description = product.description;
+
+  // ====================== RENDER ==========================
   return (
     <>
+      {contextHolder}
+
+      {/* === IMAGE AREA === */}
       <div className="col-start-2 col-end-8 row-start-1 row-end-3 pt-[48px]">
         <div className="sticky max-h-[669px] min-h-[455px] pl-[48px] mx-[8px] flex flex-row gap-[16px] justify-end h-[665px] top-[40px]">
-          <div className="flex relative flex-grow gap-[8px] min-w-[60px] max-w-[60px] h-[100%] overflow-y-scroll flex-col">
-            {image.map((item, index) => {
+          <div className="flex flex-grow gap-[8px] min-w-[60px] max-w-[60px] h-[100%] overflow-y-auto flex-col scrollbar-hide">
+            {images.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => setMainImage(img)}
+                className={`min-h-[60px] min-w-[60px] rounded-[4px] overflow-hidden border-2 ${
+                  mainImage === img
+                    ? "border-black"
+                    : "border-transparent hover:border-gray-400"
+                }`}
+              >
+                <img src={img} className="object-cover w-full h-full" />
+              </button>
+            ))}
+          </div>
+
+          <div className="w-[535px] h-[665px] bg-[#F5F5F5] rounded-lg overflow-hidden">
+            <img src={mainImage} className="object-contain w-full h-full" />
+          </div>
+        </div>
+      </div>
+
+      {/* === PRODUCT INFO === */}
+      <div className="max-w-[400px] col-start-8 col-end-[-1] pt-[48px] pl-[24px] self-start">
+        <h1 className="text-[20px] font-bold">{name}</h1>
+        <h2 className="text-[#707072]">{description}</h2>
+
+        <div className="mb-[32px] mt-[10px]">
+          <span className="font-bold text-[20px]">{price}</span>
+        </div>
+
+        {/* ================= COLOR ================= */}
+        {/* ================= COLOR ================= */}
+        <div className="mb-[32px]">
+          <p className="font-bold mb-[10px]">Select Color</p>
+
+          <div className="flex flex-wrap gap-[12px]">
+            {colors.map((color, i) => {
+              // ánh xạ màu từ text -> hex
+              const colorMap = {
+                Vàng: "#FFD700",
+                Xanh: "#1E90FF",
+                Đỏ: "#FF3B30",
+                Xám: "#A9A9A9",
+                Trắng: "#FFFFFF",
+                Đen: "#000000",
+              };
+
+              const displayColor = colorMap[color] || "#999"; // fallback
+
               return (
-                <div className="relative min-h-[60px] min-w-[60px] max-h-[60px] max-w-[60px] bg-[#E5E5E5] rounded-[4px] flex items-end justify-start">
-                  <div>
-                    <img
-                      className="w-full rounded-[4px] bg-[#E5E5E5]"
-                      src={item}
-                      alt=""
-                    />
-                  </div>
+                <div key={i} className="flex flex-col items-center">
+                  <button
+                    onClick={() => {
+                      setSelectedColor(color);
+                      setSelectedSize(null);
+                    }}
+                    className={`w-10 h-10 rounded-full border-2 transition-all ${
+                      selectedColor === color
+                        ? "border-gray-500 scale-110"
+                        : "border-gray-300 hover:border-gray-500"
+                    }`}
+                    style={{
+                      backgroundColor: displayColor,
+                    }}
+                  />
+
+                  <span className="text-xs mt-1">{color}</span>
                 </div>
               );
             })}
           </div>
-          <div className="w-[535px] h-[665px] max-w-[535-px]">
-            <div>
-              <img
-                className="bg-[#F5F5F5] object-contain"
-                src="https://static.nike.com/a/images/t_PDP_1728_v1/f_auto,q_auto:eco/af44d1ba-7b76-427e-ba78-91350a69e8f0/NIKE+P-6000.png"
-                alt=""
-              />
-            </div>
-          </div>
         </div>
-      </div>
-      <div className="max-w-[400px] col-start-8 col-end-[-1] pt-[48px] pl-[24px] mb-[8px] self-start">
-        <div className="mb-[10px]">
-          <h1 className="text-[20px] font-bold">Nike P-6000</h1>
-          <h2 className="text-[#707072] ">Men's Shoes</h2>
-        </div>
+
+        {/* ================= SIZE ================= */}
         <div className="mb-[32px]">
-          <span className="font-bold">3,239,000₫</span>
-        </div>
-        <div className="mt-[20px] mb-[32px]">
-          <fieldset>
-            <legend className="flex justify-between font-bold w-full">
-              <span className="">Select Size</span>
-              <a
-                href="#"
-                className="flex items-center justify-center gap-[2px]"
-              >
-                <svg
-                  aria-hidden="true"
-                  focusable="false"
-                  viewBox="0 0 24 24"
-                  role="img"
-                  width="24px"
-                  height="24px"
-                  fill="none"
+          <p className="font-bold">Select Size</p>
+
+          {!selectedColor ? (
+            <p className="text-red-500 text-sm mt-2">
+              Vui lòng chọn màu trước khi chọn size.
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-[7px] pt-[12px]">
+              {filteredSizes.map((variant) => (
+                <div
+                  key={variant.id}
+                  onClick={() => setSelectedSize(variant.size)}
+                  className={`cursor-pointer min-w-[91px] h-[48px] flex justify-center items-center border rounded-[4px] ${
+                    selectedSize === variant.size
+                      ? "border-black bg-gray-50"
+                      : "border-[#CACACB] hover:border-black"
+                  }`}
                 >
-                  <path
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    d="M21.75 10.5v6.75a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V10.5m3.308-2.25h12.885"
-                  ></path>
-                  <path
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    d="M15.79 5.599l2.652 2.65-2.652 2.653M8.21 5.599l-2.652 2.65 2.652 2.653M17.25 19v-2.5M12 19v-2.5M6.75 19v-2.5"
-                  ></path>
-                </svg>
-                <span className="text-[14px]">Size Guide</span>
-              </a>
-            </legend>
-          </fieldset>
-          <div className="flex flex-col-reverse">
-            <div className="grid grid-cols-3 gap-[7px] pt-[12px] rounded-[4px]">
-              {sizes.map((item, index) => {
-                return (
-                  <div className="cursor-pointer hover:border-black min-w-[91px] col-span-1 h-[48px] flex items-center justify-center border-[1px] border-solid border-[#CACACB] rounded-[4px]">
-                    <label
-                      className="flex justify-center items-center w-full h-full"
-                      htmlFor=""
-                    >
-                      EU {item}
-                    </label>
-                  </div>
-                );
-              })}
+                  EU {variant.size}
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
+
+        {/* ================= BUTTONS ================= */}
         <div className="mb-[32px]">
-          <div>
-            <button className="mb-[12px] hover:opacity-60 text-white flex justify-center w-full items-center px-[24px] py-[18px] min-h-[58px] rounded-[30px] bg-[#111111]">
-              Add To Bag
-            </button>
-          </div>
-          <div className="mb-[32px]">
-            <button className="mb-[12px] hover:border-black flex justify-center w-full items-center px-[24px] py-[18px] min-h-[58px] rounded-[30px] border border-gray-300 gap-[3px]">
-              Favourite
-              <span>
-                <svg
-                  aria-hidden="true"
-                  focusable="false"
-                  viewBox="0 0 24 24"
-                  role="img"
-                  width="24px"
-                  height="24px"
-                  fill="none"
-                >
-                  <path
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    d="M16.794 3.75c1.324 0 2.568.516 3.504 1.451a4.96 4.96 0 010 7.008L12 20.508l-8.299-8.299a4.96 4.96 0 010-7.007A4.923 4.923 0 017.205 3.75c1.324 0 2.568.516 3.504 1.451l.76.76.531.531.53-.531.76-.76a4.926 4.926 0 013.504-1.451"
-                  ></path>
-                  <title>non-filled</title>
-                </svg>
-              </span>
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              if (!selectedColor)
+                return messageApi.warning("Vui lòng chọn màu");
+
+              if (!selectedSize)
+                return messageApi.warning("Vui lòng chọn size");
+
+              const variant = product.product_variants.find(
+                (v) => v.size === selectedSize && v.color === selectedColor
+              );
+
+              addItem(product, {
+                size: selectedSize,
+                color: selectedColor,
+                variant_id: variant.id,
+              });
+
+              messageApi.success("Đã thêm vào giỏ hàng");
+            }}
+            className="w-full py-[18px] rounded-[30px] bg-[#111111] text-white mb-[12px]"
+          >
+            Add To Bag
+          </button>
+
+          <button
+            onClick={toggleWishlist}
+            className={`w-full py-[18px] rounded-[30px] border flex justify-center gap-2 ${
+              isWishlisted
+                ? "border-red-600 text-red-600"
+                : "border-gray-300 hover:border-black"
+            }`}
+          >
+            {isWishlisted ? (
+              <HeartSolid className="w-6 h-6" />
+            ) : (
+              <HeartOutline className="w-6 h-6" />
+            )}
+            {isWishlisted ? "Added to Favourites" : "Favourite"}
+          </button>
+
+          <button
+            onClick={handleClickAI}
+            disabled={isLoadingAI}
+            className="w-full py-[18px] rounded-[30px] text-white mt-[12px] flex items-center justify-center gap-3"
+            style={{
+              background:
+                "linear-gradient(135deg, #06b6d4 0%, #3b82f6 25%, #8b5cf6 50%, #ec4899 75%, #f472b6 100%)",
+            }}
+          >
+            {isLoadingAI ? (
+              <Spin />
+            ) : (
+              <>
+                <Sparkles size={20} /> Tạo gợi ý AI <Wand2 size={20} />
+              </>
+            )}
+          </button>
         </div>
-        <div className="pt-[28px]">
-          <p>
-            The P-6000 is a mash-up of Pegasus sneakers past. It takes the early
-            2000s running style to modern heights by combining sporty design
-            lines with breathable textiles. And its foam cushioning adds a
-            lifted, athletics-inspired stance for unbelievable comfort.
-          </p>
+
+        {/* DESCRIPTION */}
+        <div className="text-sm text-gray-700 mb-[20px]">
+          {product.description}
         </div>
-        <div className="mb-[32px] mt-[30px]">
-          <div>
-            <Collapse
-              title={"Free Delivery and Returns"}
-              children={child()}
-              className={"py-[15px] text-[20px] border-b"}
-            />
-            <Collapse
-              title={"Review (0)"}
-              children={<div>123</div>}
-              className={"py-[15px] text-[20px] border-b"}
-            />
+
+        {/* COLLAPSE */}
+        <Collapse
+          title="Free Delivery and Returns"
+          className="py-[15px] border-b"
+        >
+          <div className="py-4">
+            <p>Your order over 5.000.000₫ gets free delivery.</p>
+            <ul className="list-disc list-inside mt-3">
+              <li>Standard: 4–5 business days</li>
+              <li>Express: 2–4 business days</li>
+            </ul>
           </div>
-        </div>
+        </Collapse>
+
+        <Collapse title="Reviews" className="py-[15px] border-b">
+          <ReviewSection productId={id} />
+        </Collapse>
       </div>
     </>
   );

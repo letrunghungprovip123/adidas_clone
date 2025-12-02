@@ -17,7 +17,8 @@ model addresses {
   district      String?   @db.VarChar(100)
   is_default    Boolean?  @default(false)
   created_at    DateTime? @default(now()) @db.Timestamp(6)
-  users         users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users         users?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  orders        orders[]
 }
 
 model cart_items {
@@ -26,8 +27,8 @@ model cart_items {
   product_variant_id Int?
   quantity           Int?              @default(1)
   added_at           DateTime?         @default(now()) @db.Timestamp(6)
-  product_variants   product_variants? @relation(fields: [product_variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users              users?            @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product_variants   product_variants? @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
+  users              users?            @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model categories {
@@ -59,18 +60,7 @@ model loyalty_points {
   user_id    Int?
   points     Int?      @default(0)
   updated_at DateTime? @default(now()) @db.Timestamp(6)
-  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-}
-
-model notifications {
-  id         Int       @id @default(autoincrement())
-  user_id    Int?
-  type       String?   @db.VarChar(50)
-  content    String?
-  sent       Boolean?  @default(false)
-  sent_at    DateTime? @db.Timestamp(6)
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model order_items {
@@ -79,21 +69,28 @@ model order_items {
   product_variant_id Int?
   quantity           Int?
   price              Decimal?          @db.Decimal(10, 2)
-  orders             orders?           @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  product_variants   product_variants? @relation(fields: [product_variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  orders             orders?           @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product_variants   product_variants? @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
 }
 
 model orders {
-  id               Int             @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   user_id          Int?
   discount_code_id Int?
-  total_amount     Decimal?        @db.Decimal(10, 2)
-  status           String?         @default("pending") @db.VarChar(50)
-  shipping_address String?
-  created_at       DateTime?       @default(now()) @db.Timestamp(6)
-  order_items      order_items[]
-  discount_codes   discount_codes? @relation(fields: [discount_code_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users            users?          @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  total_amount     Decimal?  @db.Decimal(10, 2)
+  status           String?   @default("pending") @db.VarChar(50)
+  shipping_cost    Decimal?  @default(0) @db.Decimal(10, 2)
+  points_used      Int?      @default(0)
+  guest_email      String?   @db.VarChar(150)
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+
+  // ⭐ Chỉ cần trường này
+  shipping_address_id Int?
+  shipping_address    addresses? @relation(fields: [shipping_address_id], references: [id])
+
+  order_items    order_items[]
+  discount_codes discount_codes? @relation(fields: [discount_code_id], references: [id])
+  users          users?          @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model product_images {
@@ -101,7 +98,7 @@ model product_images {
   product_id Int?
   image_url  String?
   alt_text   String?
-  products   products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products   products? @relation(fields: [product_id], references: [id], onDelete: Cascade)
 }
 
 model product_variants {
@@ -113,7 +110,7 @@ model product_variants {
   sku         String?       @unique @db.VarChar(100)
   cart_items  cart_items[]
   order_items order_items[]
-  products    products?     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products    products?     @relation(fields: [product_id], references: [id], onDelete: Cascade)
 }
 
 model products {
@@ -129,7 +126,7 @@ model products {
   created_at       DateTime?          @default(now()) @db.Timestamp(6)
   product_images   product_images[]
   product_variants product_variants[]
-  categories       categories?        @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  categories       categories?        @relation(fields: [category_id], references: [id])
   reviews          reviews[]
   wishlists        wishlists[]
 }
@@ -143,8 +140,8 @@ model reviews {
   comment    String?
   created_at DateTime? @default(now()) @db.Timestamp(6)
   updated_at DateTime? @db.Timestamp(6)
-  products   products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products   products? @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model users {
@@ -158,10 +155,13 @@ model users {
   is_email_verified Boolean?         @default(false)
   is_admin          Boolean?         @default(false)
   created_at        DateTime?        @default(now()) @db.Timestamp(6)
+  social_id         String?          @db.VarChar(255)
+  social_provider   String?          @db.VarChar(50)
+  otp_code          String?
+  otp_expires_at    DateTime?
   addresses         addresses[]
   cart_items        cart_items[]
   loyalty_points    loyalty_points[]
-  notifications     notifications[]
   orders            orders[]
   reviews           reviews[]
   wishlists         wishlists[]
@@ -172,6 +172,8 @@ model wishlists {
   user_id    Int?
   product_id Int?
   created_at DateTime? @default(now()) @db.Timestamp(6)
-  products   products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products   products? @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, product_id])
 }

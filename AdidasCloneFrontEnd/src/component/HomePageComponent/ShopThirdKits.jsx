@@ -1,39 +1,24 @@
 import React from "react";
 import data from "../../assets/dataJson/HomePageJson/ShopThirdKits.json";
+
 const ShopThirdKits = () => {
   return (
-    <div className="mt-[84px] px-[24px]">
-      <div className="px-[48px] mb-[12px]">
-        <h2 className="text-[24px]">Shop Third Kits</h2>
+    <div className="mt-20 max-w-7xl mx-auto px-4">
+      <h2 className="text-2xl mb-6">Shop Third Kits</h2>
+
+      <div className="flex overflow-x-auto gap-6 pb-6">
+        {data.map((item, index) => (
+          <div key={index} className="min-w-[350px]">
+            <img src={item.image} alt="" className="rounded-lg" />
+
+            <div className="mt-3">
+              <h4 className="font-semibold">{item.category}</h4>
+              <p className="text-gray-500 text-sm">{item.title}</p>
+              <h3 className="mt-2 font-medium">{item.price}</h3>
+            </div>
+          </div>
+        ))}
       </div>
-      <ul className="pl-[48px] pb-[30px] overflow-x-auto flex">
-        {data.map((item, index) => {
-          return (
-            <li className="mr-[12px]">
-              <div className="relative min-w-[450px] min-h-[450px]">
-                <figure>
-                  <div className="w-full h-full">
-                    <img src={item.image} alt="" />
-                  </div>
-                  <div className="mt-[12px] flex flex-col justify-start">
-                    <div>
-                      <h4 style={{ fontFamily: "HerticalMedium, sans-serif" }}>
-                        {item.category}
-                      </h4>
-                      <h5 className="text-[14px] text-[#707072]">
-                        {item.title}
-                      </h5>
-                    </div>
-                    <div className="pt-[8px]">
-                      <h3>{item.price}</h3>
-                    </div>
-                  </div>
-                </figure>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
     </div>
   );
 };

@@ -8,6 +8,14 @@ export class PrismaService
 {
   async onModuleInit() {
     await this.$connect();
+
+    await this.$executeRawUnsafe(`
+      SELECT setval(
+        pg_get_serial_sequence('"users"', 'id'),
+        COALESCE((SELECT MAX(id) FROM "users"), 0) + 1,
+        false
+      );
+    `);
   }
 
   async onModuleDestroy() {

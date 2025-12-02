@@ -11,6 +11,7 @@ export const RMQ_PATTERN_ADDRESS = {
   POST_ADDRESS: 'post_addresses',
   UPDATE_ADDRESS: 'update_addresses',
   DELETE_ADDRESS: 'delete_addresses',
+  GET_BY_USER_ID: 'get_addresses_by_user_id',
 };
 
 export const RMQ_PATTERN_LOYALTY_POINT = {
@@ -18,4 +19,21 @@ export const RMQ_PATTERN_LOYALTY_POINT = {
   CREATE_LOYALTY: 'create_loyalty',
   UPDATE_LOYALTY: 'update_loyalty',
   DELETE_LOYALTY: 'delete_loyalty',
+};
+
+export const RMQ_PATTERN_AUTH = {
+  SIGNUP: 'signup_user',
+  LOGIN: 'login_user',
+  CHANGE_PASSWORD: 'change_password',
+  GET_USER_BY_EMAIL: 'get_user_by_email',
+  SAVE_OTP: 'save_otp', // ← MỚI
+  VERIFY_OTP: 'verify_otp', // ← MỚI: Chỉ kiểm tra OTP
+  RESET_PASSWORD: 'reset_password',
+  SOCIAL_LOGIN: 'social_login', // ← MỚI
+};
+
+export const RMQ_PATTERN_WISHLISTS = {
+  ADD_WISHLIST: 'add_wishlist',
+  GET_WISHLISTS: 'get_wishlists',
+  REMOVE_WISHLIST: 'remove_wishlist',
 };

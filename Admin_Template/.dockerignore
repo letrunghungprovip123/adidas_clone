@@ -1,0 +1,50 @@
+# Node modules & temporary
+node_modules
+npm-debug.log
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local env files
+.env
+.env.*local
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+
+# Output build
+dist
+build
+
+# Vite cache
+.vite
+.vite-cache
+
+# Logs
+*.log
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE configs
+.vscode
+.idea
+
+# Tests & coverage
+coverage
+*.spec.ts
+*.spec.js
+*.test.ts
+*.test.js
+
+# TypeScript build cache
+tsconfig.tsbuildinfo

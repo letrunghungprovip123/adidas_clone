@@ -25,19 +25,28 @@ export class AddressesService {
     }
   }
 
-  async createAddresses(data: CreateAddressDto) {
-    console.log(data);
+  async createAddresses(data: any) {
     try {
+      console.log(data);
+      let { address, userId } = data;
       let checkUser = await this.prisma.users.findFirst({
         where: {
-          id: data.user_id,
+          id: userId,
         },
       });
       if (!checkUser)
         throw new RpcException({ statusCode: 404, message: 'User ko tồn tại' });
 
       let addresses = await this.prisma.addresses.create({
-        data,
+        data: {
+          user_id: userId,
+          phone: address.phone,
+          receiver_name: address.receiver_name,
+          address_line: address.address_line,
+          city: address.city,
+          district: address.district,
+          is_default: address.is_default || false,
+        },
       });
       return {
         message: 'Tạo address thành công',
@@ -131,5 +140,28 @@ export class AddressesService {
         message: error.message || 'Lỗi hệ thống',
       });
     }
+  }
+  async getAddressesByUserId(userId: number) {
+    // Kiểm tra user tồn tại
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Người dùng không tồn tại',
+      });
+    }
+
+    const addresses = await this.prisma.addresses.findMany({
+      where: { user_id: userId },
+      orderBy: { is_default: 'desc' }, // mặc định lên đầu
+    });
+
+    return {
+      message: 'Lấy địa chỉ thành công',
+      data: addresses,
+    };
   }
 }
