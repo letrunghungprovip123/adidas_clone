@@ -4,20 +4,22 @@ services:
   # ====================================
   # =========== PostgreSQL =============
   # ====================================
-  postgres:
-    image: postgres:16
-    container_name: postgres
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123456
-      POSTGRES_DB: mydb
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - elk_net
+postgres:
+  image: postgres:16
+  container_name: postgres
+  restart: always
+  environment:
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: 123456
+    POSTGRES_DB: mydb
+  ports:
+    - "5432:5432"
+  volumes:
+    - postgres_data:/var/lib/postgresql/data
+    - ./init-postgres:/docker-entrypoint-initdb.d
+  networks:
+    - elk_net
+
 
   # ====================================
   # ============ RabbitMQ ==============
@@ -38,24 +40,36 @@ services:
   # ====================================
   # ========== Elasticsearch ===========
   # ====================================
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
-    container_name: elasticsearch
-    restart: always
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - adidasclonebackend_es_data:/usr/share/elasticsearch/data
-    ports:
-      - "9200:9200"
-    networks:
-      - elk_net
+elasticsearch:
+  image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+  container_name: elasticsearch
+  restart: always
+  environment:
+    - discovery.type=single-node
+    - xpack.security.enabled=false
+    - ES_JAVA_OPTS=-Xms1g -Xmx1g
+  ulimits:
+    memlock:
+      soft: -1
+      hard: -1
+  volumes:
+    - adidasclonebackend_es_data:/usr/share/elasticsearch/data
+  ports:
+    - "9200:9200"
+  networks:
+    - elk_net
+
+es_restorer:
+  image: alpine
+  depends_on:
+    - elasticsearch
+  volumes:
+    - ./init-elastic:/scripts
+    - ./es_backup.tar:/backup/es_backup.tar
+    - adidasclonebackend_es_data:/usr/share/elasticsearch/data
+  entrypoint: ["sh", "/scripts/restore-es.sh"]
+  networks:
+    - elk_net
 
   # ====================================
   # ============== Kibana ==============
@@ -199,14 +213,16 @@ services:
     restart: always
     user: root
     ports:
-      - "8080:8080"       # Giao diện Jenkins
-      - "50000:50000"     # Kênh agent (để đó)
+      - "8080:8080"
+      - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      # Cho phép Jenkins chạy docker/docker-compose bên trong
       - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - /usr/local/bin/docker-compose:/usr/local/bin/docker-compose
     networks:
       - elk_net
+
 
 
 # ====================================
