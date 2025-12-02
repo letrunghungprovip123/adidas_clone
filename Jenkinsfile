@@ -8,7 +8,6 @@ pipeline {
 
     tools {
         nodejs "node20"
-        git "git"
     }
 
     environment {
@@ -17,10 +16,28 @@ pipeline {
 
     stages {
 
-        stage('Clone repository') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/letrunghungprovip123/adidas_clone.git'
+                checkout scm
+            }
+        }
+
+        stage('Verify Compose File') {
+            steps {
+                sh """
+                    echo '>>> Using docker-compose.yml'
+                    test -f docker-compose.yml
+                    docker compose -f docker-compose.yml config > /dev/null
+                """
+            }
+        }
+
+        stage('Stop Old Services') {
+            steps {
+                sh """
+                    echo "--- Stopping existing services ---"
+                    ${COMPOSE_CMD} down || true
+                """
             }
         }
 
@@ -60,10 +77,10 @@ pipeline {
             }
         }
 
-        stage('Deploy with Docker Compose') {
+        stage('Deploy Services') {
             steps {
                 sh """
-                    echo "--- Restarting Services ---"
+                    echo "--- Deploying services with docker-compose.yml ---"
                     ${COMPOSE_CMD} up -d --build
                 """
             }
@@ -71,14 +88,10 @@ pipeline {
     }
 
     post {
-        success {
-            echo "🚀 CI/CD completed successfully!"
-        }
-        failure {
-            echo "❌ Build failed!"
-        }
+        success { echo "🚀 CI/CD completed successfully!" }
+        failure { echo "❌ Build failed!" }
         always {
-            echo "Cleaning temp docker containers..."
+            echo "🧹 Cleaning unused docker resources..."
             sh "docker system prune -f || true"
         }
     }
