@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../generated/inventory"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("INVENTORY_DATABASE_URL")
+}
+
+enum ReservationStatus {
+  RESERVED
+  COMMITTED
+  RELEASED
+  EXPIRED
+}
+
+model InventoryItem {
+  id        Int      @id @default(autoincrement())
+  variant_id Int     @unique
+  sku       String?  @unique @db.VarChar(100)
+  available Int      @default(0)
+  reserved  Int      @default(0)
+  version   Int      @default(0)
+  updated_at DateTime @updatedAt
+  reservations StockReservation[]
+  movements    StockMovement[]
+}
+
+model StockReservation {
+  id           Int               @id @default(autoincrement())
+  inventory_id Int
+  order_id     Int
+  quantity     Int
+  status       ReservationStatus @default(RESERVED)
+  expires_at   DateTime
+  created_at   DateTime          @default(now())
+  inventory    InventoryItem     @relation(fields: [inventory_id], references: [id])
+  @@unique([order_id, inventory_id])
+}
+
+model StockMovement {
+  id           Int           @id @default(autoincrement())
+  inventory_id Int
+  delta        Int
+  reason       String        @db.VarChar(100)
+  order_id     Int?
+  event_id     String?       @unique
+  created_at   DateTime      @default(now())
+  inventory    InventoryItem @relation(fields: [inventory_id], references: [id])
+}

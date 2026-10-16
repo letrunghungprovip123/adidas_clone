@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../generated/promotion"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PROMOTION_DATABASE_URL")
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+model Promotion {
+  id               Int                   @id @default(autoincrement())
+  code             String                @unique @db.VarChar(50)
+  description      String?
+  discount_type    DiscountType
+  value            Decimal               @db.Decimal(10, 2)
+  min_order_amount Decimal?              @db.Decimal(10, 2)
+  usage_limit      Int?
+  used_count       Int                   @default(0)
+  valid_from       DateTime?
+  valid_to         DateTime?
+  is_active        Boolean               @default(true)
+  redemptions      PromotionRedemption[]
+}
+
+model PromotionRedemption {
+  id           Int       @id @default(autoincrement())
+  promotion_id Int
+  user_id      Int?
+  order_id     Int       @unique
+  discount     Decimal   @db.Decimal(10, 2)
+  event_id     String?   @unique
+  created_at   DateTime  @default(now())
+  promotion    Promotion @relation(fields: [promotion_id], references: [id])
+}

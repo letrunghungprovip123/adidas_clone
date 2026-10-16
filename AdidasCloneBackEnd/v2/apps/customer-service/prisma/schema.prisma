@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../generated/customer"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CUSTOMER_DATABASE_URL")
+}
+
+model Customer {
+  id         Int             @id @default(autoincrement())
+  user_id    Int             @unique
+  name       String?         @db.VarChar(100)
+  phone      String?         @db.VarChar(20)
+  avatar_url String?
+  created_at DateTime        @default(now())
+  updated_at DateTime        @updatedAt
+  addresses  Address[]
+  wishlists  Wishlist[]
+  loyalty    LoyaltyLedger[]
+}
+
+model Address {
+  id            Int      @id @default(autoincrement())
+  customer_id   Int
+  receiver_name String?  @db.VarChar(100)
+  phone         String?  @db.VarChar(20)
+  address_line  String
+  city          String   @db.VarChar(100)
+  district      String   @db.VarChar(100)
+  is_default    Boolean  @default(false)
+  created_at    DateTime @default(now())
+  customer      Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+}
+
+model Wishlist {
+  id          Int      @id @default(autoincrement())
+  customer_id Int
+  product_id  Int
+  created_at  DateTime @default(now())
+  customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  @@unique([customer_id, product_id])
+}
+
+model LoyaltyLedger {
+  id          Int      @id @default(autoincrement())
+  customer_id Int
+  points      Int
+  reason      String   @db.VarChar(100)
+  order_id    Int?
+  event_id    String?  @unique
+  created_at  DateTime @default(now())
+  customer    Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+}

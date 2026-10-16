@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../generated/identity"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("IDENTITY_DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Account {
+  id                     Int       @id @default(autoincrement())
+  email                  String    @unique @db.VarChar(150)
+  password_hash          String
+  role                   Role      @default(USER)
+  is_email_verified      Boolean   @default(false)
+  social_id              String?   @db.VarChar(255)
+  social_provider        String?   @db.VarChar(50)
+  otp_hash               String?
+  otp_expires_at         DateTime?
+  reset_token_hash       String?
+  reset_token_expires_at DateTime?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+}

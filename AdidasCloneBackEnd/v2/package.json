@@ -1,0 +1,52 @@
+{
+  "name": "adidas-backend-v2",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "build:all": "npm run build:gateway && npm run build:identity && npm run build:customer && npm run build:catalog && npm run build:inventory && npm run build:order && npm run build:payment && npm run build:promotion && npm run build:notification",
+    "build:gateway": "nest build api-gateway",
+    "build:identity": "nest build identity-service",
+    "build:customer": "nest build customer-service",
+    "build:catalog": "nest build catalog-service",
+    "build:inventory": "nest build inventory-service",
+    "build:order": "nest build order-service",
+    "build:payment": "nest build payment-service",
+    "build:promotion": "nest build promotion-service",
+    "build:notification": "nest build notification-service",
+    "start:gateway": "nest start api-gateway --watch",
+    "start:identity": "nest start identity-service --watch",
+    "start:customer": "nest start customer-service --watch",
+    "start:catalog": "nest start catalog-service --watch",
+    "start:inventory": "nest start inventory-service --watch",
+    "start:order": "nest start order-service --watch",
+    "start:payment": "nest start payment-service --watch",
+    "start:promotion": "nest start promotion-service --watch",
+    "start:notification": "nest start notification-service --watch",
+    "prisma:generate": "prisma generate --schema apps/identity-service/prisma/schema.prisma && prisma generate --schema apps/customer-service/prisma/schema.prisma && prisma generate --schema apps/catalog-service/prisma/schema.prisma && prisma generate --schema apps/inventory-service/prisma/schema.prisma && prisma generate --schema apps/order-service/prisma/schema.prisma && prisma generate --schema apps/payment-service/prisma/schema.prisma && prisma generate --schema apps/promotion-service/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/microservices": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@prisma/client": "^6.0.0",
+    "amqplib": "^0.10.5",
+    "amqp-connection-manager": "^4.1.14",
+    "bcrypt": "^5.1.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "firebase-admin": "^13.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "stripe": "^18.0.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@types/node": "^22.0.0",
+    "prisma": "^6.0.0",
+    "typescript": "^5.7.0"
+  }
+}
