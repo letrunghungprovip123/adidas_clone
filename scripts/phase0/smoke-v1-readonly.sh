@@ -10,6 +10,7 @@ GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:3000}"
 FRONTEND_URL="${FRONTEND_URL:-http://127.0.0.1:3001}"
 ADMIN_URL="${ADMIN_URL:-http://127.0.0.1:3002}"
 ELASTICSEARCH_URL="${ELASTICSEARCH_URL:-http://127.0.0.1:9200}"
+SEARCH_TERM="${SEARCH_TERM:-adidas}"
 WAIT_SECONDS="${WAIT_SECONDS:-120}"
 SLEEP_SECONDS="${SLEEP_SECONDS:-3}"
 
@@ -41,6 +42,32 @@ wait_http() {
   return 1
 }
 
+check_nonempty_2xx() {
+  local name="$1"
+  local url="$2"
+  local body_file
+  local http_code
+  body_file="$(mktemp)"
+
+  http_code="$(curl --silent --show-error --max-time 20 \
+    --output "$body_file" --write-out '%{http_code}' "$url")"
+
+  if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+    echo "[phase0] ERROR: ${name} returned HTTP ${http_code}" >&2
+    cat "$body_file" >&2 || true
+    rm -f "$body_file"
+    return 1
+  fi
+  if [[ ! -s "$body_file" ]]; then
+    echo "[phase0] ERROR: ${name} returned an empty response body." >&2
+    rm -f "$body_file"
+    return 1
+  fi
+
+  rm -f "$body_file"
+  echo "[phase0] OK: ${name} (HTTP ${http_code})"
+}
+
 echo "[phase0] Checking PostgreSQL readiness..."
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   pg_isready -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-mydb}" >/dev/null
@@ -53,23 +80,14 @@ echo "[phase0] OK: RabbitMQ"
 wait_http "Elasticsearch" "${ELASTICSEARCH_URL}/_cluster/health"
 wait_http "API Gateway root" "${GATEWAY_URL}/"
 
-# GET /products crosses Gateway -> RabbitMQ -> Product Service -> PostgreSQL,
-# making it a useful non-mutating integration smoke check.
-echo "[phase0] Checking Gateway -> Product Service integration..."
-PRODUCTS_BODY="$(mktemp)"
-trap 'rm -f "$PRODUCTS_BODY"' EXIT
-HTTP_CODE="$(curl --silent --show-error --max-time 15 \
-  --output "$PRODUCTS_BODY" --write-out '%{http_code}' "${GATEWAY_URL}/products")"
-if [[ "$HTTP_CODE" -lt 200 || "$HTTP_CODE" -ge 300 ]]; then
-  echo "[phase0] ERROR: GET /products returned HTTP ${HTTP_CODE}" >&2
-  cat "$PRODUCTS_BODY" >&2 || true
-  exit 1
-fi
-if [[ ! -s "$PRODUCTS_BODY" ]]; then
-  echo "[phase0] ERROR: GET /products returned an empty response body." >&2
-  exit 1
-fi
-echo "[phase0] OK: GET /products (HTTP ${HTTP_CODE})"
+# GET /products crosses Gateway -> RabbitMQ -> Product Service -> PostgreSQL.
+check_nonempty_2xx "GET /products" "${GATEWAY_URL}/products"
+
+# GET /products/search crosses Gateway -> RabbitMQ -> Product Service -> Elasticsearch.
+# Empty result sets are allowed; only HTTP success + a non-empty serialized response are required.
+ENCODED_SEARCH_TERM="$(printf '%s' "$SEARCH_TERM" | sed 's/ /%20/g')"
+check_nonempty_2xx "GET /products/search" \
+  "${GATEWAY_URL}/products/search?q=${ENCODED_SEARCH_TERM}&page=1&limit=1"
 
 wait_http "Customer frontend" "${FRONTEND_URL}/"
 wait_http "Admin frontend" "${ADMIN_URL}/"
