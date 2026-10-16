@@ -39,7 +39,15 @@ if [[ ! -s "${BACKUP_FILE}" ]]; then
   exit 1
 fi
 
-SHA256="$(sha256sum "${BACKUP_FILE}" | awk '{print $1}')"
+if command -v sha256sum >/dev/null 2>&1; then
+  SHA256="$(sha256sum "${BACKUP_FILE}" | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+  SHA256="$(shasum -a 256 "${BACKUP_FILE}" | awk '{print $1}')"
+else
+  echo "[phase0] ERROR: neither sha256sum nor shasum is available." >&2
+  exit 127
+fi
+
 SIZE_BYTES="$(wc -c < "${BACKUP_FILE}" | tr -d ' ')"
 
 cat > "${META_FILE}" <<EOF
