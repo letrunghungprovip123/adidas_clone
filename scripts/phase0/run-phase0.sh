@@ -17,7 +17,7 @@ PHASE0_SKIP_BACKUP="${PHASE0_SKIP_BACKUP:-0}"
 PHASE0_SKIP_SMOKE="${PHASE0_SKIP_SMOKE:-0}"
 PHASE0_ALLOW_DIRTY="${PHASE0_ALLOW_DIRTY:-0}"
 
-required_commands=(git docker curl sha256sum)
+required_commands=(git docker curl grep sort head)
 required_runtime_files=(
   "AdidasCloneBackEnd/api_gateway/.env"
   "AdidasCloneBackEnd/service/user_service/.env"
@@ -44,6 +44,11 @@ for command_name in "${required_commands[@]}"; do
     exit 127
   fi
 done
+
+if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+  echo "[phase0] ERROR: either sha256sum (Linux) or shasum (macOS) is required." >&2
+  exit 127
+fi
 
 if ! docker info >/dev/null 2>&1; then
   echo "[phase0] ERROR: Docker CLI exists but the Docker daemon is not reachable." >&2
@@ -111,8 +116,7 @@ else
   COMPOSE_FILE="$COMPOSE_FILE" BACKUP_DIR="$BACKUP_DIR" POSTGRES_DB="$POSTGRES_DB" \
     bash scripts/phase0/backup-postgres.sh
 
-  LATEST_BACKUP="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name "${POSTGRES_DB}-*.dump" -printf '%T@ %p\n' \
-    | sort -nr | head -n 1 | cut -d' ' -f2-)"
+  LATEST_BACKUP="$(ls -1t "$BACKUP_DIR"/"${POSTGRES_DB}"-*.dump 2>/dev/null | head -n 1 || true)"
   if [[ -z "$LATEST_BACKUP" || ! -s "$LATEST_BACKUP" ]]; then
     echo "[phase0] ERROR: could not locate the backup created in ${BACKUP_DIR}." >&2
     exit 1
