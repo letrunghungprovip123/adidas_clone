@@ -27,17 +27,10 @@ echo "[phase0] Git HEAD: $(git rev-parse HEAD)"
 echo "[phase0] Validating Docker Compose syntax..."
 docker compose -f "${COMPOSE_FILE}" config >/dev/null
 
-mapfile -t ACTUAL_SERVICES < <(docker compose -f "${COMPOSE_FILE}" config --services)
+ACTUAL_SERVICES="$(docker compose -f "${COMPOSE_FILE}" config --services)"
 
 for expected in "${EXPECTED_SERVICES[@]}"; do
-  found=0
-  for actual in "${ACTUAL_SERVICES[@]}"; do
-    if [[ "${actual}" == "${expected}" ]]; then
-      found=1
-      break
-    fi
-  done
-  if [[ "${found}" -ne 1 ]]; then
+  if ! printf '%s\n' "$ACTUAL_SERVICES" | grep -Fxq "$expected"; then
     echo "[phase0] ERROR: expected Compose service is missing: ${expected}" >&2
     exit 1
   fi
@@ -77,16 +70,9 @@ if [[ "${PHASE0_START}" == "1" ]]; then
   echo "[phase0] Running services:"
   docker compose -f "${COMPOSE_FILE}" ps
 
-  mapfile -t RUNNING_SERVICES < <(docker compose -f "${COMPOSE_FILE}" ps --services --status running)
+  RUNNING_SERVICES="$(docker compose -f "${COMPOSE_FILE}" ps --services --status running)"
   for expected in "${EXPECTED_SERVICES[@]}"; do
-    found=0
-    for running in "${RUNNING_SERVICES[@]}"; do
-      if [[ "${running}" == "${expected}" ]]; then
-        found=1
-        break
-      fi
-    done
-    if [[ "${found}" -ne 1 ]]; then
+    if ! printf '%s\n' "$RUNNING_SERVICES" | grep -Fxq "$expected"; then
       echo "[phase0] ERROR: service did not reach running state: ${expected}" >&2
       exit 1
     fi
