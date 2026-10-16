@@ -1,3 +1,24 @@
 node_modules
 jenkins-compose.yml
 
+# Local/runtime environment files
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local secret material
+firebase-admin-key.json
+**/firebase-admin-key.json
+*.pem
+*.key
+
+# Phase 0 database backups must never be committed
+backups/
+*.dump
+*.sql.gz
+
+# OS/editor artifacts
+.DS_Store
