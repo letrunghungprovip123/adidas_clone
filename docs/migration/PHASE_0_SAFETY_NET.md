@@ -72,13 +72,15 @@ The runner performs, in order:
 1. prerequisite + working-tree safety checks;
 2. repository and Docker Compose validation;
 3. V1 Docker image build;
-4. `docker compose up -d` without running `down` or deleting volumes;
+4. `docker compose up -d` for explicit V1 application services (excluding `es_restorer`), without running `down` or deleting volumes;
 5. read-only runtime smoke checks;
 6. PostgreSQL custom-format backup;
 7. restore into a temporary verification database;
 8. automatic deletion of the temporary verification database.
 
 The runner intentionally leaves the V1 stack running for inspection.
+
+**Important:** The legacy `es_restorer` service untars an archived Elasticsearch data directory into the live ES volume. Phase 0 runner explicitly excludes it to avoid overwriting existing search data. Run the runner against a local/dev instance, not an important production deployment: `docker compose up -d` can still recreate application containers.
 
 ### Required local/Jenkins runtime files
 
