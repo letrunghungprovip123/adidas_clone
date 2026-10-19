@@ -95,8 +95,16 @@ else
   docker compose -f "$COMPOSE_FILE" build
 fi
 
-echo "[phase0] Step 3/6 - Start/update V1 stack without tearing it down..."
-docker compose -f "$COMPOSE_FILE" up -d
+echo "[phase0] Step 3/6 - Start/update V1 application stack without tearing it down..."
+# IMPORTANT: Explicitly exclude es_restorer. Legacy es_restorer untars a backup
+# directly into Elasticsearch's live data volume and must never auto-run in a
+# non-destructive baseline check.
+V1_RUNTIME_SERVICES=(
+  postgres rabbitmq elasticsearch kibana
+  user_service product_service order_service api_gateway
+  frontend admin
+)
+docker compose -f "$COMPOSE_FILE" up -d "${V1_RUNTIME_SERVICES[@]}"
 
 echo "[phase0] Compose state after start:"
 docker compose -f "$COMPOSE_FILE" ps
