@@ -12,7 +12,7 @@ export function positiveId(v:unknown,name='id'):number {
 }
 export function priceVnd(v:unknown):string {
   const str=typeof v==='number'&&Number.isFinite(v)?String(v):v;
-  if(typeof str!=='string'||!/^\\d{1,12}(?:\\.\\d{1,2})?$/.test(str))
+  if(typeof str!=='string'||!/^\d{1,12}(?:\.\d{1,2})?$/.test(str))
     throw new CatalogError('VALIDATION_FAILED','Price must have at most two decimal places');
   const [whole,fraction='']=str.split('.');
   if(BigInt(whole)>100000000000n)
