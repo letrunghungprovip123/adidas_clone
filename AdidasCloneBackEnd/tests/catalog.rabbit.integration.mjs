@@ -75,8 +75,13 @@ test('Catalog/Inventory live RabbitMQ: guarded writes, provisioning and stock pr
    await sleep(250);
   }
   assert.ok(registered,'Catalog must provision missing Inventory variant via RabbitMQ');
-  const registeredStatus=await pool.query('SELECT inventory_sync_status FROM catalog_variants WHERE id=$1',[variantId]);
-  assert.equal(registeredStatus.rows[0].inventory_sync_status,'SYNCED');
+  let statusSynced=false;
+  for(let i=0;i<40;i++){
+   const registeredStatus=await pool.query('SELECT inventory_sync_status FROM catalog_variants WHERE id=$1',[variantId]);
+   if(registeredStatus.rows[0]?.inventory_sync_status==='SYNCED'){statusSynced=true;break}
+   await sleep(250);
+  }
+  assert.ok(statusSynced,'Catalog must acknowledge Inventory registration before allowing checkout');
   const {InventoryDatabase}=require('../dist/apps/inventory-service/src/inventory/database.js');
   const {InventoryService}=require('../dist/apps/inventory-service/src/inventory/inventory.service.js');
   const domainDb=new InventoryDatabase();
