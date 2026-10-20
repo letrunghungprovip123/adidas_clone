@@ -12,7 +12,7 @@ export type ReserveResult = {
 };
 export type AvailabilityResult = {
   variant_id: number; on_hand_qty: number; reserved_qty: number;
-  available_qty: number; status: 'ACTIVE' | 'DISABLED';
+  available_qty: number; stock_version?:number; status: 'ACTIVE' | 'DISABLED';
 };
 export class InventoryError extends Error {
   constructor(public readonly code: string, message: string) { super(message); this.name='InventoryError'; }
