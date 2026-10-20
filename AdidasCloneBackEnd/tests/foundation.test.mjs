@@ -63,12 +63,12 @@ test('the new V2 compose cannot reuse V1 Docker volumes', () => {
   assert.match(compose, /name: adidas-v2/);
   assert.match(compose, /v2_postgres_data:/);
   assert.match(compose, /v2_elasticsearch_data:/);
-  assert.doesNotMatch(compose, /adidasclonebackend_es_data|postgres_data:|container_name:\s*postgres\b/);
+  assert.doesNotMatch(compose, /adidasclonebackend_es_data|container_name:\s*postgres\b|^\s+postgres_data:/m);
 });
 test('secrets are not hard-coded and live env files remain ignored', () => {
   const compose = read('infra/docker/docker-compose.v2.yml');
-  assert.match(compose, /V2_POSTGRES_PASSWORD:\?/);
-  assert.match(compose, /V2_RABBITMQ_PASSWORD:\?/);
+  assert.match(compose, /\$\{V2_POSTGRES_PASSWORD:\?/);
+  assert.match(compose, /\$\{V2_RABBITMQ_PASSWORD:\?/);
   const ignore = read('.gitignore');
   assert.match(ignore, /\.env\.\*/);
 });
