@@ -9,7 +9,7 @@ import {
 } from './inventory.types';
 
 type Row = { id: string; checkout_ref: string; status: ReservationStatus; expires_at: Date };
-type StockRow = { variant_id: number; on_hand_qty: number; reserved_qty: number; status: 'ACTIVE'|'DISABLED' };
+type StockRow = { variant_id: number; on_hand_qty: number; reserved_qty: number; status: 'ACTIVE'|'DISABLED'; version:string };
 const hashOf = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 @Injectable()
@@ -19,10 +19,10 @@ export class InventoryService {
   async availability(variantId: number): Promise<AvailabilityResult> {
     assertPositiveInteger(variantId, 'variant_id', 2147483647);
     const r = await this.db.query<StockRow>(
-      'SELECT variant_id, on_hand_qty, reserved_qty, status FROM inventory_stock WHERE variant_id=$1', [variantId]);
+      'SELECT variant_id, on_hand_qty, reserved_qty, status, version FROM inventory_stock WHERE variant_id=$1', [variantId]);
     if (r.rows.length === 0) throw new InventoryError('NOT_FOUND', 'Unknown inventory variant');
     const s = r.rows[0];
-    return { ...s, available_qty: s.status === 'ACTIVE' ? s.on_hand_qty - s.reserved_qty : 0 };
+    return { variant_id:s.variant_id,on_hand_qty:s.on_hand_qty,reserved_qty:s.reserved_qty,status:s.status,stock_version:Number(s.version), available_qty:s.status==='ACTIVE'?s.on_hand_qty-s.reserved_qty:0 };
   }
 
   private normalized(request: ReserveRequest) {
