@@ -23,6 +23,6 @@ export function assertPositiveInteger(value: unknown, name: string, upper = 1000
 }
 export function assertIdentifier(value: unknown, name: string): asserts value is string {
   if (typeof value !== 'string' || value.length < 1 || value.length > 180 ||
-      !/^[\w:.\-]+$/.test(value))
+      !/^[\w:.-]+$/.test(value))
     throw new InventoryError('VALIDATION_FAILED', name + ' must be a safe 1-180 character identifier');
 }
