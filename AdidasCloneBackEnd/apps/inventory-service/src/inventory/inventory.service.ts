@@ -143,19 +143,36 @@ export class InventoryService {
       {reservation_id:row.id,checkout_ref:row.checkout_ref});
   }
 
-  async changeReservation(id: string, action:'COMMITTED'|'RELEASED'):Promise<ReserveResult> {
-    assertIdentifier(id,'reservation_id');
+  async status(id:string):Promise<ReserveResult> {
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+      throw new InventoryError('VALIDATION_FAILED','Invalid reservation ID');
     return this.db.transaction(async client=>{
+      const r=await client.query<Row>(
+        'SELECT id,checkout_ref,status,expires_at FROM inventory_reservations WHERE id=$1 FOR UPDATE',[id]);
+      if(!r.rows.length)throw new InventoryError('NOT_FOUND','Reservation not found');
+      await this.expireOneIfNeeded(client,r.rows[0]);
+      const state=await client.query<Row>(
+        'SELECT id,checkout_ref,status,expires_at FROM inventory_reservations WHERE id=$1',[id]);
+      return this.loadResult(client,state.rows[0]);
+    });
+  }
+
+  async changeReservation(id: string, action:'COMMITTED'|'RELEASED'):Promise<ReserveResult> {
+    if(typeof id!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+      throw new InventoryError('VALIDATION_FAILED','Invalid reservation ID');
+    // Decide terminal response AFTER transaction: expiry must commit even when commit is rejected.
+    const final=await this.db.transaction(async client=>{
       const result=await client.query<Row>(
         'SELECT id,checkout_ref,status,expires_at FROM inventory_reservations WHERE id=$1 FOR UPDATE',[id]);
       if(!result.rows.length) throw new InventoryError('NOT_FOUND','Reservation not found');
       const row=result.rows[0];
       if(row.status===action) return this.loadResult(client,row);
-      await this.expireOneIfNeeded(client,row);
-      const current=await client.query<Row>(
-        'SELECT id,checkout_ref,status,expires_at FROM inventory_reservations WHERE id=$1',[id]);
-      if(current.rows[0].status!=='ACTIVE')
-        throw new InventoryError('CONFLICT','Reservation already finalized as '+current.rows[0].status);
+      if(row.status!=='ACTIVE')return this.loadResult(client,row);
+      if(await this.expireOneIfNeeded(client,row)){
+        const ended=await client.query<Row>(
+          'SELECT id,checkout_ref,status,expires_at FROM inventory_reservations WHERE id=$1',[id]);
+        return this.loadResult(client,ended.rows[0]);
+      }
       if(action==='RELEASED') await this.releaseItems(client,row,'RELEASED');
       else {
         const items=await client.query<ReservationItem>(
@@ -178,6 +195,8 @@ export class InventoryService {
         'SELECT id,checkout_ref,status,expires_at FROM inventory_reservations WHERE id=$1',[id]);
       return this.loadResult(client,latest.rows[0]);
     });
+    if(final.status!==action) throw new InventoryError('CONFLICT','Reservation already finalized as '+final.status);
+    return final;
   }
 
   /** Adjustment is privileged/internal only. A negative delta may never undercut outstanding holds. */
