@@ -24,7 +24,8 @@
     "smoke:foundation": "node scripts/verify-foundation-smoke.mjs",
     "migrate:inventory": "node scripts/phase2/migrate-inventory.mjs",
     "test:inventory": "node --test tests/inventory.integration.mjs",
-    "seed:inventory:check": "node scripts/phase2/import-seed-v1.mjs --check"
+    "seed:inventory:check": "node scripts/phase2/import-seed-v1.mjs --check",
+    "test:inventory:rmq": "node --test tests/inventory.rabbit.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "11.2.7",
