@@ -21,28 +21,38 @@
     "start:payment": "node dist/apps/payment-service/src/main.js",
     "start:promotion": "node dist/apps/promotion-service/src/main.js",
     "start:notification": "node dist/apps/notification-service/src/main.js",
-    "smoke:foundation": "node scripts/verify-foundation-smoke.mjs"
+    "smoke:foundation": "node scripts/verify-foundation-smoke.mjs",
+    "migrate:inventory": "node scripts/phase2/migrate-inventory.mjs",
+    "test:inventory": "node --test tests/inventory.integration.test.mjs",
+    "seed:inventory:check": "node scripts/phase2/import-seed-v1.mjs --check"
   },
   "dependencies": {
-    "@nestjs/common": "11.2.1",
-    "@nestjs/core": "11.2.1",
-    "@nestjs/microservices": "11.2.1",
-    "@nestjs/platform-express": "11.2.1",
+    "@nestjs/common": "11.2.7",
+    "@nestjs/core": "11.2.7",
+    "@nestjs/microservices": "11.2.7",
+    "@nestjs/platform-express": "11.2.7",
     "@nestjs/swagger": "11.4.7",
     "@nestjs/terminus": "11.1.1",
     "class-transformer": "0.5.1",
     "class-validator": "0.14.2",
     "helmet": "8.1.0",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
+    "rxjs": "7.8.2",
+    "pg": "8.23.1",
+    "amqplib": "0.10.9"
   },
   "devDependencies": {
     "@eslint/js": "9.39.0",
-    "@nestjs/testing": "11.2.1",
+    "@nestjs/testing": "11.2.7",
     "@types/express": "5.0.3",
     "@types/node": "24.9.1",
     "eslint": "9.39.0",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.46.0"
+    "typescript-eslint": "8.46.0",
+    "@types/pg": "8.23.1",
+    "@types/amqplib": "0.10.7"
+  },
+  "overrides": {
+    "js-yaml": "5.4.1"
   }
 }

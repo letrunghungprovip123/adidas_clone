@@ -94,7 +94,26 @@ services:
   inventory-service:
     <<: *v2-app
     command: [node, dist/apps/inventory-service/src/main.js]
-    environment: {PORT: '4104', NODE_ENV: development}
+    environment:
+      PORT: '4104'
+      NODE_ENV: development
+      V2_INVENTORY_ENABLED: 'true'
+      V2_INVENTORY_RMQ_ENABLED: 'true'
+      V2_INVENTORY_DB_HOST: postgres
+      V2_INVENTORY_DB_USER: v2_local
+      V2_INVENTORY_DB_PASSWORD: ${V2_POSTGRES_PASSWORD:?Missing V2 Postgres password}
+      V2_INVENTORY_DB_NAME: inventory_db
+      V2_INVENTORY_RMQ_HOST: rabbitmq
+      V2_INVENTORY_RMQ_USER: ${V2_RABBITMQ_USER:?Missing V2 RabbitMQ username}
+      V2_INVENTORY_RMQ_PASSWORD: ${V2_RABBITMQ_PASSWORD:?Missing V2 RabbitMQ password}
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4104/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
   order-service:
     <<: *v2-app
     command: [node, dist/apps/order-service/src/main.js]

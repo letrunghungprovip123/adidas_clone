@@ -42,11 +42,11 @@ export class InventoryRmqController {
   release(@Payload() env:unknown,@Ctx() context:RmqContext) {
     return this.handle(context,env,p=>this.inventory.changeReservation(p.reservation_id as string,'RELEASED'));
   }
-  @MessagePattern({cmd:'inventory.availability.get.v1'})
+  @MessagePattern({cmd:COMMANDS.inventoryAvailabilityGet})
   availability(@Payload() env:unknown,@Ctx() context:RmqContext) {
     return this.handle(context,env,p=>this.inventory.availability(p.variant_id as number));
   }
-  @MessagePattern({cmd:'inventory.reservation.status.get.v1'})
+  @MessagePattern({cmd:COMMANDS.inventoryReservationStatusGet})
   status(@Payload() env:unknown,@Ctx() context:RmqContext) {
     return this.handle(context,env,p=>this.inventory.status(p.reservation_id as string));
   }

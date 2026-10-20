@@ -11,12 +11,19 @@ export const COMMANDS = {
   inventoryReservationCreate: 'inventory.reservation.create.v1',
   inventoryReservationRelease: 'inventory.reservation.release.v1',
   inventoryReservationCommit: 'inventory.reservation.commit.v1',
+  inventoryReservationStatusGet: 'inventory.reservation.status.get.v1',
+  inventoryAvailabilityGet: 'inventory.availability.get.v1',
   orderPaymentQuoteGet: 'order.payment-quote.get.v1',
   paymentIntentCreate: 'payment.intent.create.v1',
   paymentIntentCancelOrStatus: 'payment.intent.cancel-or-status.v1'
 } as const;
 
 export const EVENTS = {
+  inventoryReserved: 'inventory.reserved.v1',
+  inventoryCommitted: 'inventory.committed.v1',
+  inventoryReleased: 'inventory.released.v1',
+  inventoryExpired: 'inventory.expired.v1',
+  inventoryAdjusted: 'inventory.adjusted.v1',
   paymentSucceeded: 'payment.succeeded.v1',
   paymentAttemptFailed: 'payment.attempt-failed.v1',
   paymentCanceled: 'payment.canceled.v1',
@@ -75,3 +82,13 @@ export interface WireError {
   correlation_id: string;
   details?: Record<string, unknown>;
 }
+
+/** Only service-to-service callers may issue these commands; frontends have no direct stock-write route. */
+export interface InventoryReservePayload {
+  checkout_ref: string;
+  idempotency_key: string;
+  items: Array<{variant_id:number;quantity:number}>;
+  ttl_seconds?: number;
+}
+export interface InventoryReservationActionPayload { reservation_id:string }
+export interface InventoryAvailabilityPayload { variant_id:number }
