@@ -8,6 +8,7 @@ on:
       - 'AdidasCloneBackEnd/tests/**'
       - 'AdidasCloneBackEnd/infra/**'
       - 'AdidasCloneBackEnd/package.json'
+      - 'AdidasCloneBackEnd/package-lock.json'
       - 'AdidasCloneBackEnd/tsconfig*.json'
       - 'AdidasCloneBackEnd/eslint.config.mjs'
       - 'AdidasCloneBackEnd/nest-cli.json'
@@ -29,8 +30,8 @@ jobs:
           node-version: '24'
       - name: Confirm Node major
         run: node -e "if(process.versions.node.split('.')[0]!=='24')process.exit(1)"
-      - name: Install pinned top-level dependencies (temporary before reviewed lockfile)
-        run: npm install --ignore-scripts --no-audit
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit
       - name: Lint and typecheck
         run: npm run lint && npm run typecheck
       - name: Unit/static architecture checks
