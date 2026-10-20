@@ -29,6 +29,9 @@ test('Catalog V2 migration, business and NFR: real PostgreSQL',async t=>{
   assert.equal(product.base_price_vnd,'3500000.00');
  });
  await t.test('Quote is authoritative, ignores client prices, validates variant state',async()=>{
+  // Isolated SQL domain test: emulate a successful registration response.
+  // Real producer/consumer provisioning is tested separately through RabbitMQ.
+  await db.query("UPDATE catalog_variants SET inventory_sync_status='SYNCED' WHERE id=1");
   const quote=await catalog.quote([{variant_id:1,quantity:2}]);
   assert.equal(quote.items[0].unit_price_vnd,'3500000.00');
   assert.equal(quote.subtotal_vnd,'7000000.00');

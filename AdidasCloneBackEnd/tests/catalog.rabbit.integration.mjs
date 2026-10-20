@@ -52,6 +52,14 @@ test('Catalog/Inventory live RabbitMQ: guarded writes, provisioning and stock pr
   }).pipe(timeout(10000)));
   const details=await send(COMMANDS.catalogProductGet,{id:1});
   assert.equal(details.ok,true);assert.equal(details.data.name,'Adidas UltraBoost 22');
+  // Unlike the old seed shortcut, Inventory must acknowledge provision first.
+  let registeredSeed=false;
+  for(let i=0;i<45;i++){
+   const state=await pool.query("SELECT inventory_sync_status FROM catalog_variants WHERE id=1");
+   if(state.rows[0]?.inventory_sync_status==='SYNCED'){registeredSeed=true;break}
+   await sleep(250);
+  }
+  assert.ok(registeredSeed,'Seed variant must be explicitly registered with Inventory');
   const quote=await send(COMMANDS.catalogCheckoutItemsGet,{items:[{variant_id:1,quantity:2}]});
   assert.equal(quote.ok,true);assert.equal(quote.data.subtotal_vnd,'7000000.00');
   const forbidden=await send(COMMANDS.catalogProductCreate,{data:{name:'Injected'},idempotency_key:randomUUID()},{kind:'admin'});
