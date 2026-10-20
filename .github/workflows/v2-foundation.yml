@@ -1,0 +1,46 @@
+name: V2 Foundation Quality Gate
+on:
+  push:
+    branches: [refactor/v2-phase1-foundation]
+    paths:
+      - 'AdidasCloneBackEnd/apps/**'
+      - 'AdidasCloneBackEnd/libs/**'
+      - 'AdidasCloneBackEnd/tests/**'
+      - 'AdidasCloneBackEnd/infra/**'
+      - 'AdidasCloneBackEnd/package.json'
+      - 'AdidasCloneBackEnd/tsconfig*.json'
+      - 'AdidasCloneBackEnd/eslint.config.mjs'
+      - 'AdidasCloneBackEnd/nest-cli.json'
+      - '.github/workflows/v2-foundation.yml'
+  pull_request:
+    paths:
+      - 'AdidasCloneBackEnd/**'
+      - '.github/workflows/v2-foundation.yml'
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: AdidasCloneBackEnd
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Confirm Node major
+        run: node -e "if(process.versions.node.split('.')[0]!=='24')process.exit(1)"
+      - name: Install pinned top-level dependencies (temporary before reviewed lockfile)
+        run: npm install --ignore-scripts --no-audit
+      - name: Lint and typecheck
+        run: npm run lint && npm run typecheck
+      - name: Unit/static architecture checks
+        run: npm test
+      - name: Compile all V2 apps
+        run: npm run build
+      - name: Compose schema validation (no containers started)
+        env:
+          V2_POSTGRES_PASSWORD: ci-placeholder-not-a-real-secret
+          V2_RABBITMQ_USER: ci
+          V2_RABBITMQ_PASSWORD: ci-placeholder-not-a-real-secret
+          V2_ALLOWED_ORIGINS: http://localhost:3001
+        run: docker compose -f infra/docker/docker-compose.v2.yml config --quiet

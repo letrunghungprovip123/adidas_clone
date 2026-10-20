@@ -1,0 +1,130 @@
+name: adidas-v2
+
+x-v2-app: &v2-app
+  image: adidas-v2-backend:phase1
+  build:
+    context: ../..
+    dockerfile: Dockerfile.v2
+  restart: unless-stopped
+  networks: [v2_internal]
+  security_opt: [no-new-privileges:true]
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: v2_local
+      POSTGRES_PASSWORD: ${V2_POSTGRES_PASSWORD:?Set V2_POSTGRES_PASSWORD in the V2 env file}
+      POSTGRES_DB: postgres
+    volumes:
+      - v2_postgres_data:/var/lib/postgresql/data
+      - ./10-create-databases.sh:/docker-entrypoint-initdb.d/10-create-databases.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U v2_local -d postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks: [v2_internal]
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${V2_RABBITMQ_USER:?Set V2_RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${V2_RABBITMQ_PASSWORD:?Set V2_RABBITMQ_PASSWORD}
+    volumes:
+      - v2_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+    networks: [v2_internal]
+
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, 'no']
+    networks: [v2_internal]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - v2_elasticsearch_data:/usr/share/elasticsearch/data
+    networks: [v2_internal]
+    restart: unless-stopped
+
+  api-gateway:
+    <<: *v2-app
+    command: [node, dist/apps/api-gateway/src/main.js]
+    environment:
+      PORT: '4300'
+      NODE_ENV: development
+      V2_ALLOWED_ORIGINS: ${V2_ALLOWED_ORIGINS:?Set V2_ALLOWED_ORIGINS}
+    ports:
+      - '127.0.0.1:4300:4300'
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4300/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  identity-service:
+    <<: *v2-app
+    command: [node, dist/apps/identity-service/src/main.js]
+    environment: {PORT: '4101', NODE_ENV: development}
+  customer-service:
+    <<: *v2-app
+    command: [node, dist/apps/customer-service/src/main.js]
+    environment: {PORT: '4102', NODE_ENV: development}
+  catalog-service:
+    <<: *v2-app
+    command: [node, dist/apps/catalog-service/src/main.js]
+    environment: {PORT: '4103', NODE_ENV: development}
+  inventory-service:
+    <<: *v2-app
+    command: [node, dist/apps/inventory-service/src/main.js]
+    environment: {PORT: '4104', NODE_ENV: development}
+  order-service:
+    <<: *v2-app
+    command: [node, dist/apps/order-service/src/main.js]
+    environment: {PORT: '4105', NODE_ENV: development}
+  payment-service:
+    <<: *v2-app
+    command: [node, dist/apps/payment-service/src/main.js]
+    environment: {PORT: '4106', NODE_ENV: development}
+  promotion-service:
+    <<: *v2-app
+    command: [node, dist/apps/promotion-service/src/main.js]
+    environment: {PORT: '4107', NODE_ENV: development}
+  notification-service:
+    <<: *v2-app
+    command: [node, dist/apps/notification-service/src/main.js]
+    environment: {PORT: '4108', NODE_ENV: development}
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    profiles: [tools]
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    networks: [v2_internal]
+    depends_on: [elasticsearch]
+
+networks:
+  v2_internal:
+    name: adidas-v2-internal
+    driver: bridge
+volumes:
+  v2_postgres_data:
+  v2_rabbitmq_data:
+  v2_elasticsearch_data:
