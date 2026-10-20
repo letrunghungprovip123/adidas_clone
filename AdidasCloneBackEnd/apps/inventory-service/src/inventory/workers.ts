@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { InventoryDatabase } from './database';
-import { randomUUID } from 'node:crypto';
 import amqp from 'amqplib';
 import type { ConfirmChannel, ChannelModel } from 'amqplib';
 
