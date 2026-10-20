@@ -20,7 +20,8 @@
     "start:order": "node dist/apps/order-service/src/main.js",
     "start:payment": "node dist/apps/payment-service/src/main.js",
     "start:promotion": "node dist/apps/promotion-service/src/main.js",
-    "start:notification": "node dist/apps/notification-service/src/main.js"
+    "start:notification": "node dist/apps/notification-service/src/main.js",
+    "smoke:foundation": "node scripts/verify-foundation-smoke.mjs"
   },
   "dependencies": {
     "@nestjs/common": "11.2.1",
