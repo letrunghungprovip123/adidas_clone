@@ -90,7 +90,29 @@ services:
   catalog-service:
     <<: *v2-app
     command: [node, dist/apps/catalog-service/src/main.js]
-    environment: {PORT: '4103', NODE_ENV: development}
+    environment:
+      PORT: '4103'
+      NODE_ENV: development
+      V2_CATALOG_ENABLED: 'true'
+      V2_CATALOG_RMQ_ENABLED: 'true'
+      V2_CATALOG_SEARCH_ENABLED: '${V2_CATALOG_SEARCH_ENABLED:-false}'
+      V2_CATALOG_DB_HOST: postgres
+      V2_CATALOG_DB_USER: v2_local
+      V2_CATALOG_DB_PASSWORD: ${V2_POSTGRES_PASSWORD:?Set V2_POSTGRES_PASSWORD}
+      V2_CATALOG_DB_NAME: catalog_db
+      V2_CATALOG_RMQ_HOST: rabbitmq
+      V2_CATALOG_RMQ_USER: ${V2_RABBITMQ_USER:?Set V2_RABBITMQ_USER}
+      V2_CATALOG_RMQ_PASSWORD: ${V2_RABBITMQ_PASSWORD:?Set V2_RABBITMQ_PASSWORD}
+      V2_CATALOG_ES_URL: http://elasticsearch:9200
+      V2_CATALOG_WRITES_ENABLED: 'false'
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4103/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
   inventory-service:
     <<: *v2-app
     command: [node, dist/apps/inventory-service/src/main.js]
