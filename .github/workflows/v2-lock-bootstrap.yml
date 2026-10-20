@@ -1,0 +1,33 @@
+name: V2 One-time Dependency Lock Bootstrap
+on:
+  push:
+    branches: [refactor/v2-phase1-foundation]
+    paths:
+      - '.github/workflows/v2-lock-bootstrap.yml'
+permissions:
+  contents: write
+jobs:
+  lock:
+    if: github.ref == 'refs/heads/refactor/v2-phase1-foundation'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: AdidasCloneBackEnd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Generate and reviewable lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit
+      - name: Commit lockfile only to Phase 1 branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add AdidasCloneBackEnd/package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build(v2): lock Node 24 dependency tree"
+            git push origin HEAD:refs/heads/refactor/v2-phase1-foundation
+          fi
