@@ -1,6 +1,6 @@
 import {Logger} from '@nestjs/common';
 import {CatalogDatabase} from './database';
-import {assertInputFields,boundedPage,requiredText,priceVnd,normalizeGender,positiveId} from './catalog.types';
+import {CatalogError,assertInputFields,boundedPage,requiredText,priceVnd,normalizeGender,positiveId} from './catalog.types';
 type ProductRecord={id:number;name:string;slug:string;description:string|null;brand:string|null;
  gender:string;category_id:number|null;base_price_vnd:string;status:string;version:string;created_at:Date};
 export class CatalogSearch{
