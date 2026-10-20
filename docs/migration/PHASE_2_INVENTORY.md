@@ -66,9 +66,9 @@ All inputs use a Phase 1 `MessageEnvelope` with `contract_version:1`; business r
 ## Exit/limitations
 
 - [x] Schema, transactional domain logic, expiry worker, outbox, message handlers committed.
-- [x] Targeted PostgreSQL tests include 50 concurrent buyers / one last item, rollback, idempotent retries, commit/expire race, adjustment.
-- [ ] Real RabbitMQ integration CI run confirmed and archived at latest head.
+- [x] Targeted PostgreSQL tests include 50 concurrent buyers / one last item, rollback, idempotent retries, commit/expire race, adjustment (12/12 PASS).
+- [x] Real RabbitMQ request-response + transactional outbox integration PASS on GitHub Actions: https://github.com/letrunghungprovip123/adidas_clone/actions/runs/39420416019.
 - [ ] Local Mac V2 migration + targeted Inventory Docker readiness confirmed (optional for implementation acceptance; still needed before local interactive development).
 - [ ] Domain cutover deferred: V1 remains responsible for existing checkout until Catalog/Order/Payment/Identity integrations are ready.
 
-**This phase does not claim a finished customer checkout, transactional Stripe integration or synchronization of live V1 stock.**
+**This phase does not claim a finished customer checkout, transactional Stripe integration or synchronization of live V1 stock.** Production npm audit on CI returned 0 vulnerabilities. V2 inventory remains isolated from V1.
