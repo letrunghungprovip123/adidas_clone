@@ -40,6 +40,14 @@ curl -fsS http://localhost:4300/api/v1/system
 
 `docker compose up -d api-gateway` starts the V2 gateway shell; it does not start V1 or change database state. For the optional fresh V2 data infrastructure use `up -d postgres rabbitmq redis elasticsearch`; storage is separate from V1. The eight domain shells may be started explicitly if needed; do not run the entire stack on a low-disk Mac unintentionally.
 
+## Owner-approved development data policy (20 October 2026)
+
+- The repository owner confirms that the running V1 environment contains no newly valuable data beyond the existing GitHub `main:init-postgres/nike_shop.sql` seed and explicitly directs **no new PostgreSQL dumps, no backup/restore drills and no automated backup gate during Phase 1 or subsequent phases** while that remains true.
+- Treat the seed SQL as a **rebuildable development baseline**, not a proven byte-for-byte snapshot of currently running PostgreSQL. It contains DROP statements: never import it into the live `mydb` in order to verify migration.
+- The V2 foundation and tests must run against new isolated V2 storage or disposable fixtures. Do not alter or delete V1 DB/volumes, and never run `es_restorer`, `docker compose down -v` on V1 or destructive Docker volume cleanup.
+- When meaningful new data is first introduced, reassess recovery requirements before any destructive migration or cutover; agree on and verify the backup process at that time.
+- This owner-approved waiver replaces the older Phase 0 dump/restore acceptance items as a **planning gate only**. It does not assert those backup/restore tests passed.
+
 ## Exit gate — evidence still required
 
 - [x] Phase 1 branch derives from Phase 0 commit.
@@ -47,10 +55,10 @@ curl -fsS http://localhost:4300/api/v1/system
 - [x] Gateway configured with CORS/validation/Swagger and technical health endpoints.
 - [x] Distinct V2 Compose project and V2-only named volumes defined.
 - [x] Static Node test suite and CI pipeline authored.
-- [ ] Phase 0: actual PostgreSQL dump from live mydb restored and verified (not yet evidenced).
+- [x] Phase 0 backup/restore gate explicitly waived by repository owner for the current development-only dataset. The original `init-postgres/nike_shop.sql` on `main` is accepted as the seed baseline; it has **not** been verified equivalent to the live DB, and restoring it can drop tables. No backup or restore test is to be requested in upcoming phases unless new data worth retaining is introduced or the owner changes this decision.
 - [ ] Phase 0: local host Git / .env `Operation canceled` issue resolved.
 - [x] Dependency lockfile generated on Node 24 and committed; CI/Docker switched to `npm ci`.
-- [x] GitHub Actions: Node 24 npm install, lint, typecheck, static tests, build, real HTTP smoke and Compose config PASS; rerun after lockfile switch pending.
+- [x] GitHub Actions: Node 24 locked `npm ci`, lint, typecheck, tests, build, real HTTP smoke and Compose config PASS.
 - [ ] V2 Docker build, Compose validation and gateway HTTP health/docs smoke pass on Docker host.
 - [ ] PR review confirming no modified V1 business files.
 
