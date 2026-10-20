@@ -286,7 +286,37 @@ export class CatalogService{
    const patch=Object.entries(fields),args=patch.map(x=>x[1]);
    const sets=patch.map(([key],i)=>key+'=$'+(i+1)).join(',');
    const updated=await c.query<VariantRow>(
-    'UPDATE catalog_variants SET '+sets+',version=version+1,inventory_status_synced_version=0,updated_at=clock_timestamp() WHERE id=+(args.length+1)+' RETURNING *',
+    'UPDATE catalog_variants SET '+sets+',version=version+1,inventory_status_synced_version=0,updated_at=clock_timestamp() WHERE id=' RETURNING *',
+    [...args,id]);
+   await this.publishEvent(c,'catalog.variant.updated.v1',{id,product_id:updated.rows[0].product_id});
+   return updated.rows[0];
+  });
+ }
+ async priceHistory(productId:number){
+  positiveId(productId);
+  const rows=await this.db.query(
+   'SELECT old_price_vnd,new_price_vnd,product_version,actor_id,reason,created_at FROM catalog_price_history WHERE product_id=$1 ORDER BY created_at DESC LIMIT 100',
+   [productId]);
+  return rows.rows;
+ }
+
+}
++(args.length+1)+' RETURNING *',
+    [...args,id]);
+   await this.publishEvent(c,'catalog.variant.updated.v1',{id,product_id:updated.rows[0].product_id});
+   return updated.rows[0];
+  });
+ }
+ async priceHistory(productId:number){
+  positiveId(productId);
+  const rows=await this.db.query(
+   'SELECT old_price_vnd,new_price_vnd,product_version,actor_id,reason,created_at FROM catalog_price_history WHERE product_id=$1 ORDER BY created_at DESC LIMIT 100',
+   [productId]);
+  return rows.rows;
+ }
+
+}
++(args.length+1)+' RETURNING *',
     [...args,id]);
    await this.publishEvent(c,'catalog.variant.updated.v1',{id,product_id:updated.rows[0].product_id});
    return updated.rows[0];
