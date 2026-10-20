@@ -37,9 +37,11 @@ async function bootstrap(){
   }
   app.enableShutdownHooks();
   const server=await app.listen(readPort(process.env.PORT,4104),'0.0.0.0');
-  const close=async()=>{if(publisher)await publisher.close();await app.close();};
-  process.once('SIGTERM',()=>{void close()});
-  process.once('SIGINT',()=>{void close()});
+  if(publisher){
+    const cleanup=()=>{void publisher.close().catch(()=>undefined)};
+    process.once('SIGTERM',cleanup);
+    process.once('SIGINT',cleanup);
+  }
   return server;
 }
 void bootstrap().catch(e=>{console.error('inventory bootstrap failed: '+(e instanceof Error?e.message:'unknown'));process.exitCode=1});
