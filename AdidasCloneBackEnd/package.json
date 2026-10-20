@@ -30,7 +30,8 @@
     "seed:catalog:check": "node scripts/phase3/seed-catalog.mjs --check",
     "seed:catalog": "node scripts/phase3/import-catalog.mjs",
     "test:catalog": "node --test tests/catalog.integration.mjs",
-    "test:catalog:rmq": "node --test tests/catalog.rabbit.integration.mjs"
+    "test:catalog:rmq": "node --test tests/catalog.rabbit.integration.mjs",
+    "test:catalog:es": "node --test tests/catalog.search.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "11.2.7",

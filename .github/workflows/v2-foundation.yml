@@ -100,6 +100,10 @@ jobs:
         run: npm run seed:catalog:check && npm run seed:catalog
       - name: Catalog PostgreSQL domain integration
         run: npm run test:catalog
+      - name: Catalog-to-Inventory real RabbitMQ integration
+        run: npm run test:catalog:rmq
+      - name: Catalog Elasticsearch search/index and atomic reindex
+        run: npm run test:catalog:es
       - name: Check original seed variant parser without writing to any database
         run: npm run seed:inventory:check
       - name: Production dependency high severity guard
