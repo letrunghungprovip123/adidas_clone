@@ -63,3 +63,17 @@ curl -fsS http://localhost:4300/api/v1/system
 - [ ] PR review confirming no modified V1 business files.
 
 Do not claim Phase 1 COMPLETE or start business extraction while these gates are unverified.
+
+## Recovery for pre-existing isolated V2 PostgreSQL volume
+
+On some Docker Desktop for macOS setups, the earlier bind-mounted `.sh` initializer failed with `bad interpreter: Permission denied`. The V2 initializer is now `10-create-databases.sql`, executed by psql on first volume creation. An existing V2 volume is **not** initialized twice, so to create the missing logical databases safely **without deleting volumes**, run:
+
+```bash
+DC=(docker compose --env-file infra/docker/.env.local -f infra/docker/docker-compose.v2.yml)
+"${DC[@]}" config --quiet
+"${DC[@]}" up -d --no-deps postgres
+cat infra/docker/10-create-databases.sql | "${DC[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U v2_local -d postgres
+"${DC[@]}" exec -T postgres psql -U v2_local -d postgres -Atc "SELECT count(*) FROM pg_database WHERE datname IN ('identity_db','customer_db','catalog_db','inventory_db','order_db','payment_db','promotion_db');"
+```
+
+Expected count: **7**. This repair modifies only the new `adidas-v2` PostgreSQL instance and is idempotent; it does **not** touch V1 or require any backup.

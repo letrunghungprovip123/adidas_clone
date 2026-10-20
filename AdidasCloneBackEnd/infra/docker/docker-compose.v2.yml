@@ -18,7 +18,7 @@ services:
       POSTGRES_DB: postgres
     volumes:
       - v2_postgres_data:/var/lib/postgresql/data
-      - ./10-create-databases.sh:/docker-entrypoint-initdb.d/10-create-databases.sh:ro
+      - ./10-create-databases.sql:/docker-entrypoint-initdb.d/10-create-databases.sql:ro
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U v2_local -d postgres']
       interval: 10s

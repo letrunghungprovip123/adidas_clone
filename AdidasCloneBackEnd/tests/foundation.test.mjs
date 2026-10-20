@@ -72,3 +72,18 @@ test('secrets are not hard-coded and live env files remain ignored', () => {
   const ignore = read('.gitignore');
   assert.match(ignore, /\.env\.\*/);
 });
+
+
+test('isolated V2 PostgreSQL bootstrap uses idempotent SQL without executable shell permission', () => {
+  const compose = read('infra/docker/docker-compose.v2.yml');
+  const sql = read('infra/docker/10-create-databases.sql');
+  assert.match(compose, /10-create-databases\.sql:\/docker-entrypoint-initdb\.d\/10-create-databases\.sql:ro/);
+  assert.doesNotMatch(compose, /10-create-databases\.sh/);
+  assert.match(sql, /NOT EXISTS/);
+  assert.match(sql, /\\gexec/);
+  for (const name of ['identity_db', 'customer_db', 'catalog_db', 'inventory_db',
+    'order_db', 'payment_db', 'promotion_db']) {
+    assert.ok(sql.includes("'" + name + "'"), name);
+  }
+  assert.doesNotMatch(sql.replace(/^--.*$/gm, ''), /DROP DATABASE|mydb/);
+});
