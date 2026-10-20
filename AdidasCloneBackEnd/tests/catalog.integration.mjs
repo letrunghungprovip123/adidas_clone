@@ -26,12 +26,12 @@ test('Catalog V2 migration, business and NFR: real PostgreSQL',async t=>{
   assert.equal(product.name,'Adidas UltraBoost 22');
   assert.ok(product.variants.some(v=>v.id===1));
   assert.equal(product.status,'PUBLISHED');
-  assert.equal(product.base_price_vnd,'3500000');
+  assert.equal(product.base_price_vnd,'3500000.00');
  });
  await t.test('Quote is authoritative, ignores client prices, validates variant state',async()=>{
   const quote=await catalog.quote([{variant_id:1,quantity:2}]);
-  assert.equal(quote.items[0].unit_price_vnd,3500000);
-  assert.equal(quote.subtotal_vnd,7000000);
+  assert.equal(quote.items[0].unit_price_vnd,'3500000.00');
+  assert.equal(quote.subtotal_vnd,'7000000.00');
   await assert.rejects(catalog.quote([{variant_id:1,quantity:1,unit_price_vnd:1}]),code('VALIDATION_FAILED'));
   await assert.rejects(catalog.quote([{variant_id:999999,quantity:1}]),code('NOT_FOUND'));
  });

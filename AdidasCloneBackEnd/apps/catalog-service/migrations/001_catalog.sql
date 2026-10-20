@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS catalog_products(
  name VARCHAR(255) NOT NULL CHECK(length(btrim(name))>0),
  slug VARCHAR(255) NOT NULL UNIQUE,
  description TEXT,
- base_price_vnd BIGINT NOT NULL CHECK(base_price_vnd>=0),
+ base_price_vnd NUMERIC(16,2) NOT NULL CHECK(base_price_vnd>=0),
  category_id INTEGER REFERENCES catalog_categories(id),
  brand VARCHAR(100), gender TEXT NOT NULL DEFAULT 'UNISEX'
    CHECK(gender IN ('MEN','WOMEN','UNISEX')),
@@ -51,7 +51,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS catalog_product_primary_image_idx
  ON catalog_product_images(product_id) WHERE is_primary;
 CREATE TABLE IF NOT EXISTS catalog_price_history(
  id UUID PRIMARY KEY, product_id INTEGER NOT NULL REFERENCES catalog_products(id),
- old_price_vnd BIGINT NOT NULL, new_price_vnd BIGINT NOT NULL,
+ old_price_vnd NUMERIC(16,2) NOT NULL, new_price_vnd NUMERIC(16,2) NOT NULL,
  product_version BIGINT NOT NULL, actor_id TEXT, reason VARCHAR(250),
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
  UNIQUE(product_id,product_version)

@@ -103,7 +103,7 @@ export class CatalogService{
    const old=await this.one(c,id,true);
    if(old.status==='ARCHIVED'||Number(old.version)!==expectedVersion)
     throw new CatalogError('CONFLICT','Archived or stale product');
-   const previous=Number(old.base_price_vnd);
+   const previous=old.base_price_vnd;
    if(previous===price)throw new CatalogError('CONFLICT','Price unchanged');
    const r=await c.query<ProductRow>(
     'UPDATE catalog_products SET base_price_vnd=$2,version=version+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING *',[id,price]);
@@ -222,9 +222,11 @@ export class CatalogService{
    if(v.status!=='ACTIVE'||v.inventory_sync_status!=='SYNCED'||v.product_status!=='PUBLISHED')
      throw new CatalogError('CONFLICT','Variant unavailable: '+v.id);
    return {product_id:v.product_id,variant_id:v.id,sku:v.sku,name:v.name,quantity:sum.get(v.id)!,
-    unit_price_vnd:Number(v.base_price_vnd),currency:'VND',product_version:Number(v.product_version)};
+    unit_price_vnd:v.base_price_vnd,currency:'VND',product_version:Number(v.product_version)};
   }).sort((a,b)=>a.variant_id-b.variant_id);
-  return {items:valid,subtotal_vnd:valid.reduce((a,x)=>a+x.quantity*x.unit_price_vnd,0)};
+  const toMinor=(v:string)=>BigInt(v.replace('.',''));
+  const minor=valid.reduce((sum,x)=>sum+toMinor(x.unit_price_vnd)*BigInt(x.quantity),0n);
+  return {items:valid,subtotal_vnd:(minor/100n).toString()+'.'+(minor%100n).toString().padStart(2,'0')};
  }
  async reviews(productId:number,page:unknown=1,limit:unknown=12){
   positiveId(productId);const p=boundedPage(page,1,100000),n=boundedPage(limit,12,50);

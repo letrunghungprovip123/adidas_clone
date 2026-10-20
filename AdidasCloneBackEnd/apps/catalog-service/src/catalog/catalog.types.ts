@@ -10,10 +10,14 @@ export function positiveId(v:unknown,name='id'):number {
     throw new CatalogError('VALIDATION_FAILED',name+' must be a positive integer');
   return v;
 }
-export function priceVnd(v:unknown):number {
-  if(typeof v!=='number'||!Number.isSafeInteger(v)||v<0||v>100000000000)
-    throw new CatalogError('VALIDATION_FAILED','Price must be an integer number of VND');
-  return v;
+export function priceVnd(v:unknown):string {
+  const str=typeof v==='number'&&Number.isFinite(v)?String(v):v;
+  if(typeof str!=='string'||!/^\\d{1,12}(?:\\.\\d{1,2})?$/.test(str))
+    throw new CatalogError('VALIDATION_FAILED','Price must have at most two decimal places');
+  const [whole,fraction='']=str.split('.');
+  if(BigInt(whole)>100000000000n)
+    throw new CatalogError('VALIDATION_FAILED','Price too large');
+  return BigInt(whole).toString()+'.'+fraction.padEnd(2,'0');
 }
 export function safeSlug(v:unknown):string {
   const s=requiredText(v,'slug',255).toLowerCase();

@@ -22,7 +22,7 @@ export class CatalogSearch{
    suggest:{type:'search_as_you_type',analyzer:'text_folded'},
    slug:{type:'keyword'},description:{type:'text',analyzer:'text_folded'},
    brand:{type:'keyword'},gender:{type:'keyword'},category_id:{type:'integer'},
-   price_vnd:{type:'long'},created_at:{type:'date'},available:{type:'boolean'},
+   price_vnd:{type:'scaled_float',scaling_factor:100},created_at:{type:'date'},available:{type:'boolean'},
    variants:{type:'nested',properties:{variant_id:{type:'integer'},sku:{type:'keyword'},
     size:{type:'keyword'},color:{type:'keyword'},available_qty:{type:'integer'}}}
   }}
@@ -131,8 +131,8 @@ export class CatalogSearch{
   if(q.gender!==undefined)filter.push({term:{gender:normalizeGender(q.gender)}});
   if(q.in_stock===true||q.in_stock==='true')filter.push({term:{available:true}});
   const range:Record<string,number>={};
-  if(q.price_min!==undefined)range.gte=priceVnd(q.price_min);
-  if(q.price_max!==undefined)range.lte=priceVnd(q.price_max);
+  if(q.price_min!==undefined)range.gte=Number(priceVnd(q.price_min));
+  if(q.price_max!==undefined)range.lte=Number(priceVnd(q.price_max));
   if(Object.keys(range).length)filter.push({range:{price_vnd:range}});
   if(q.size||q.color){
    const term:unknown[]=[];

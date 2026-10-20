@@ -53,7 +53,7 @@ test('Catalog/Inventory live RabbitMQ: guarded writes, provisioning and stock pr
   const details=await send(COMMANDS.catalogProductGet,{id:1});
   assert.equal(details.ok,true);assert.equal(details.data.name,'Adidas UltraBoost 22');
   const quote=await send(COMMANDS.catalogCheckoutItemsGet,{items:[{variant_id:1,quantity:2}]});
-  assert.equal(quote.ok,true);assert.equal(quote.data.subtotal_vnd,7000000);
+  assert.equal(quote.ok,true);assert.equal(quote.data.subtotal_vnd,'7000000.00');
   const forbidden=await send(COMMANDS.catalogProductCreate,{data:{name:'Injected'},idempotency_key:randomUUID()},{kind:'admin'});
   assert.equal(forbidden.ok,false);assert.equal(forbidden.error.code,'FORBIDDEN');
 
