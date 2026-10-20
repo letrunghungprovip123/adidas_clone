@@ -36,7 +36,7 @@ async function bootstrap(){
     await app.startAllMicroservices();
   }
   app.enableShutdownHooks();
-  const server=await app.listen(readPort(process.env.PORT,4104),'0.0.0.0');
+  const server=await app.listen(readPort(process.env.PORT, 4104),'0.0.0.0');
   if(publisher){
     const cleanup=()=>{void publisher.close().catch(()=>undefined)};
     process.once('SIGTERM',cleanup);
