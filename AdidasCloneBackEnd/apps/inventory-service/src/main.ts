@@ -1,15 +1,45 @@
 import 'reflect-metadata';
 import { ConsoleLogger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { Transport } from '@nestjs/microservices';
 import { AppModule } from './app.module';
 import { readPort } from '../../../libs/config/src';
+import { InventoryDatabase } from './inventory/database';
+import { InventoryOutboxPublisher } from './inventory/workers';
 
-async function bootstrap(): Promise<void> {
-  // Internal HTTP listener is for liveness/readiness only in Phase 1.
-  const app = await NestFactory.create(AppModule, {
-    logger: new ConsoleLogger({ json: true })
-  });
-  app.enableShutdownHooks();
-  await app.listen(readPort(process.env.PORT, 4104), '0.0.0.0');
+function amqpUrl():string {
+  const username=process.env.V2_INVENTORY_RMQ_USER;
+  const password=process.env.V2_INVENTORY_RMQ_PASSWORD;
+  const host=process.env.V2_INVENTORY_RMQ_HOST||'rabbitmq';
+  if(!username||!password)throw new Error('RabbitMQ credentials required');
+  return 'amqp://'+encodeURIComponent(username)+':'+encodeURIComponent(password)+'@'+host+':5672';
 }
-void bootstrap();
+async function bootstrap(){
+  const app=await NestFactory.create(AppModule,{logger:new ConsoleLogger({json:true})});
+  const active=process.env.V2_INVENTORY_ENABLED==='true';
+  const rmq=process.env.V2_INVENTORY_RMQ_ENABLED==='true';
+  if(rmq&&!active)throw new Error('RabbitMQ requires V2_INVENTORY_ENABLED=true');
+  let publisher:InventoryOutboxPublisher|undefined;
+  if(rmq) {
+    const url=amqpUrl();
+    const db=app.get(InventoryDatabase);
+    await db.ready();
+    publisher=await InventoryOutboxPublisher.start(db,url);
+    app.connectMicroservice({
+      transport:Transport.RMQ,
+      options:{
+        urls:[url],queue:'inventory.commands.q',queueOptions:{
+          durable:true,arguments:{'x-dead-letter-exchange':'inventory.dlx','x-dead-letter-routing-key':'inventory.failed'}
+        },noAck:false,prefetchCount:10
+      }
+    });
+    await app.startAllMicroservices();
+  }
+  app.enableShutdownHooks();
+  const server=await app.listen(readPort(process.env.PORT,4104),'0.0.0.0');
+  const close=async()=>{if(publisher)await publisher.close();await app.close();};
+  process.once('SIGTERM',()=>{void close()});
+  process.once('SIGINT',()=>{void close()});
+  return server;
+}
+void bootstrap().catch(e=>{console.error('inventory bootstrap failed: '+(e instanceof Error?e.message:'unknown'));process.exitCode=1});
