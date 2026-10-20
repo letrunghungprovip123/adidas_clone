@@ -1,0 +1,47 @@
+{
+  "name": "adidas-clone-v2-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "V2 NestJS monorepo foundation: no V1 business migrations",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "lint": "eslint apps libs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "start:gateway": "node dist/apps/api-gateway/src/main.js",
+    "start:identity": "node dist/apps/identity-service/src/main.js",
+    "start:customer": "node dist/apps/customer-service/src/main.js",
+    "start:catalog": "node dist/apps/catalog-service/src/main.js",
+    "start:inventory": "node dist/apps/inventory-service/src/main.js",
+    "start:order": "node dist/apps/order-service/src/main.js",
+    "start:payment": "node dist/apps/payment-service/src/main.js",
+    "start:promotion": "node dist/apps/promotion-service/src/main.js",
+    "start:notification": "node dist/apps/notification-service/src/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.2.1",
+    "@nestjs/core": "11.2.1",
+    "@nestjs/microservices": "11.2.1",
+    "@nestjs/platform-express": "11.2.1",
+    "@nestjs/swagger": "11.4.7",
+    "@nestjs/terminus": "11.1.1",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.14.2",
+    "helmet": "8.1.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.0",
+    "@nestjs/testing": "11.2.1",
+    "@types/express": "5.0.3",
+    "@types/node": "24.9.1",
+    "eslint": "9.39.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.0"
+  }
+}

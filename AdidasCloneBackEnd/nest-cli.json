@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "monorepo": true,
+  "root": "apps/api-gateway",
+  "sourceRoot": "apps/api-gateway/src",
+  "compilerOptions": {
+    "webpack": false,
+    "tsConfigPath": "tsconfig.build.json"
+  },
+  "projects": {
+    "api-gateway": {
+      "type": "application",
+      "root": "apps/api-gateway",
+      "entryFile": "main",
+      "sourceRoot": "apps/api-gateway/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    },
+    "identity-service": {
+      "type": "application",
+      "root": "apps/identity-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/identity-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    },
+    "customer-service": {
+      "type": "application",
+      "root": "apps/customer-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/customer-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    },
+    "catalog-service": {
+      "type": "application",
+      "root": "apps/catalog-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/catalog-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    },
+    "inventory-service": {
+      "type": "application",
+      "root": "apps/inventory-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/inventory-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    },
+    "order-service": {
+      "type": "application",
+      "root": "apps/order-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/order-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    },
+    "payment-service": {
+      "type": "application",
+      "root": "apps/payment-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/payment-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    },
+    "promotion-service": {
+      "type": "application",
+      "root": "apps/promotion-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/promotion-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    },
+    "notification-service": {
+      "type": "application",
+      "root": "apps/notification-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/notification-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.build.json"
+      }
+    }
+  }
+}
