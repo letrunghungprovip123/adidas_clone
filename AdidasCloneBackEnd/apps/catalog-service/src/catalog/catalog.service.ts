@@ -233,4 +233,68 @@ export class CatalogService{
    ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3`,[productId,n,(p-1)*n]);
   return {data:rows.rows,page:p,limit:n};
  }
+ async categories(){
+  const r=await this.db.query('SELECT * FROM catalog_categories WHERE status=$1 ORDER BY name,id',['ACTIVE']);
+  return r.rows;
+ }
+ async createCategory(input:unknown,key:string){
+  const v=assertInputFields(input,['name','slug','description']);
+  const data={name:requiredText(v.name,'name',100),slug:safeSlug(v.slug),
+   description:v.description==null?null:requiredText(v.description,'description',10000)};
+  return this.op('category:create:'+key,data,async c=>{
+   const id=await this.newCategoryId(c);
+   const result=await c.query('INSERT INTO catalog_categories(id,name,slug,description) VALUES($1,$2,$3,$4) RETURNING *',
+    [id,data.name,data.slug,data.description]);
+   return result.rows[0];
+  });
+ }
+ private async newCategoryId(c:PoolClient){
+  await c.query("SELECT pg_advisory_xact_lock(hashtext('catalog_categories'))");
+  const r=await c.query<{id:number}>('SELECT coalesce(max(id),0)+1 AS id FROM catalog_categories');
+  return r.rows[0].id;
+ }
+ async categoryStatus(id:number,status:'ACTIVE'|'INACTIVE',key:string){
+  positiveId(id);if(!['ACTIVE','INACTIVE'].includes(status))
+    throw new CatalogError('VALIDATION_FAILED','Invalid category status');
+  return this.op('category:status:'+key,{id,status},async c=>{
+   if(status==='INACTIVE'){
+    const inUse=await c.query(
+     "SELECT 1 FROM catalog_products WHERE category_id=$1 AND status='PUBLISHED' LIMIT 1",[id]);
+    if(inUse.rowCount)throw new CatalogError('CONFLICT','Category has published products');
+   }
+   const r=await c.query('UPDATE catalog_categories SET status=$2 WHERE id=$1 RETURNING *',[id,status]);
+   if(!r.rowCount)throw new CatalogError('NOT_FOUND','Category missing');
+   return r.rows[0];
+  });
+ }
+ async updateVariant(id:number,input:unknown,key:string){
+  positiveId(id);
+  const v=assertInputFields(input,['size','color','sku']);
+  if(!Object.keys(v).length)throw new CatalogError('VALIDATION_FAILED','Empty variant patch');
+  const fields:Record<string,string>={};
+  if(v.size!==undefined)fields.size=requiredText(v.size,'size',30);
+  if(v.color!==undefined)fields.color=requiredText(v.color,'color',80);
+  if(v.sku!==undefined)fields.sku=requiredText(v.sku,'sku',100);
+  return this.op('variant:update:'+key,{id,fields},async c=>{
+   const old=await c.query<VariantRow>('SELECT * FROM catalog_variants WHERE id=$1 FOR UPDATE',[id]);
+   if(!old.rowCount)throw new CatalogError('NOT_FOUND','Variant missing');
+   if(fields.sku&&fields.sku!==old.rows[0].sku&&old.rows[0].inventory_sync_status==='SYNCED')
+    throw new CatalogError('CONFLICT','Changing SKU after Inventory registration requires a separate coordinated operation');
+   const patch=Object.entries(fields),args=patch.map(x=>x[1]);
+   const sets=patch.map(([key],i)=>key+'=$'+(i+1)).join(',');
+   const updated=await c.query<VariantRow>(
+    'UPDATE catalog_variants SET '+sets+',version=version+1,updated_at=clock_timestamp() WHERE id=$'+(args.length+1)+' RETURNING *',
+    [...args,id]);
+   await this.publishEvent(c,'catalog.variant.updated.v1',{id,product_id:updated.rows[0].product_id});
+   return updated.rows[0];
+  });
+ }
+ async priceHistory(productId:number){
+  positiveId(productId);
+  const rows=await this.db.query(
+   'SELECT old_price_vnd,new_price_vnd,product_version,actor_id,reason,created_at FROM catalog_price_history WHERE product_id=$1 ORDER BY created_at DESC LIMIT 100',
+   [productId]);
+  return rows.rows;
+ }
+
 }
