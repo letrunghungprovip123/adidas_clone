@@ -17,7 +17,7 @@ Defer: live domain endpoints, migration of user/product/order data, Stripe, SMTP
 ```bash
 cd AdidasCloneBackEnd
 node -v
-npm install --ignore-scripts    # pending lockfile; see blockers below
+npm ci --ignore-scripts       # locked dependency tree committed in Phase 1
 npm run check
 ```
 
@@ -49,8 +49,8 @@ curl -fsS http://localhost:4300/api/v1/system
 - [x] Static Node test suite and CI pipeline authored.
 - [ ] Phase 0: actual PostgreSQL dump from live mydb restored and verified (not yet evidenced).
 - [ ] Phase 0: local host Git / .env `Operation canceled` issue resolved.
-- [ ] Dependency lockfile generated and reviewed using Node 24; switch CI/Docker to `npm ci`.
-- [ ] Node 24 install/lint/typecheck/unit tests/build run successfully.
+- [x] Dependency lockfile generated on Node 24 and committed; CI/Docker switched to `npm ci`.
+- [x] GitHub Actions: Node 24 npm install, lint, typecheck, static tests, build, real HTTP smoke and Compose config PASS; rerun after lockfile switch pending.
 - [ ] V2 Docker build, Compose validation and gateway HTTP health/docs smoke pass on Docker host.
 - [ ] PR review confirming no modified V1 business files.
 
