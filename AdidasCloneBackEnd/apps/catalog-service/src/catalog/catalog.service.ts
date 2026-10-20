@@ -8,7 +8,7 @@ import {CatalogError,requiredText,positiveId,priceVnd,safeSlug,normalizeGender,
 const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 type ProductRow={id:number;name:string;slug:string;description:string|null;base_price_vnd:string;
  category_id:number|null;brand:string|null;gender:string;status:string;version:string;attributes:unknown};
-type VariantRow={id:number;product_id:number;sku:string;size:string;color:string;status:string;inventory_sync_status:string};
+type VariantRow={id:number;product_id:number;sku:string;size:string;color:string;status:string;inventory_sync_status:string;version:string};
 @Injectable()
 export class CatalogService{
  constructor(private readonly db:CatalogDatabase){}
