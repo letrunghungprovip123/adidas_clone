@@ -1,9 +1,8 @@
 # This image serves V2 skeletons only; never references V1 containers or data.
 FROM node:24-alpine AS builder
 WORKDIR /workspace
-COPY package.json .npmrc ./
-# Lockfile will be enforced with npm ci once generated on a Node 24 host.
-RUN npm install --ignore-scripts --no-audit
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci --ignore-scripts --no-audit
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY apps ./apps
 COPY libs ./libs
