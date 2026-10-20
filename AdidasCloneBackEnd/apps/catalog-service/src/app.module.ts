@@ -1,6 +1,5 @@
-import { Module } from '@nestjs/common';
-import { HealthModule } from '../../../libs/health/src/health.module';
-
-/** No business logic, database, or message consumers are connected in Phase 1. */
-@Module({ imports: [HealthModule] })
+import {Module} from '@nestjs/common';
+import {HealthModule} from '../../../libs/health/src/health.module';
+import {CatalogModule} from './catalog/catalog.module';
+@Module({imports:process.env.V2_CATALOG_ENABLED==='true'?[CatalogModule]:[HealthModule]})
 export class AppModule {}
