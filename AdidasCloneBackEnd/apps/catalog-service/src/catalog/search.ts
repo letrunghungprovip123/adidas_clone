@@ -1,6 +1,6 @@
 import {Logger} from '@nestjs/common';
 import {CatalogDatabase} from './database';
-import {assertInputFields,boundedPage,requiredText,priceVnd,normalizeGender} from './catalog.types';
+import {assertInputFields,boundedPage,requiredText,priceVnd,normalizeGender,positiveId} from './catalog.types';
 type ProductRecord={id:number;name:string;slug:string;description:string|null;brand:string|null;
  gender:string;category_id:number|null;base_price_vnd:string;status:string;version:string;created_at:Date};
 export class CatalogSearch{
@@ -42,16 +42,23 @@ export class CatalogSearch{
   }else throw new Error('Cannot read Catalog search alias');
  }
  async start(){
-  await this.ensureIndex();
+  if(this.timer)return;
+  // Keep retrying index bootstrap even when ES is unavailable at process startup.
   this.timer=setInterval(()=>{void this.tick()},2500);
   this.timer.unref();
+  await this.tick();
  }
+ private initialized=false;
  private async tick(){
   if(this.busy)return;
   this.busy=true;
-  try{await this.syncBatch(20)}
-  catch(e){this.log.warn('Catalog search will retry: '+(e instanceof Error?e.message:'unknown'))}
-  finally{this.busy=false}
+  try{
+   if(!this.initialized){await this.ensureIndex();this.initialized=true;}
+   await this.syncBatch(20);
+  }catch(e){
+   this.initialized=false;
+   this.log.warn('Catalog search will retry: '+(e instanceof Error?e.message:'unknown'));
+  }finally{this.busy=false}
  }
  private async indexedDocument(id:number){
   const row=await this.db.query<ProductRecord>('SELECT * FROM catalog_products WHERE id=$1',[id]);
@@ -157,12 +164,40 @@ export class CatalogSearch{
     total:Number(raw.hits?.total?.value??0),page,limit,source:'elasticsearch'}};
   }catch{
    this.log.warn('ES unavailable; using bounded PostgreSQL fallback');
-   const where=['status=\'PUBLISHED\'','(name ILIKE $1 OR brand ILIKE $1 OR description ILIKE $1)'];
-   const args:unknown[]=['%'+text.replaceAll('%','\\%').replaceAll('_','\\_')+'%'];
+   const conditions=["p.status='PUBLISHED'",
+     "(p.name ILIKE $1 ESCAPE '\\\\' OR p.brand ILIKE $1 ESCAPE '\\\\' OR p.description ILIKE $1 ESCAPE '\\\\')"];
+   const pattern='%'+text.replaceAll('\\\\','\\\\\\\\').replaceAll('%','\\\\%').replaceAll('_','\\\\_')+'%';
+   const args:unknown[]=[pattern];
+   const bind=(template:(param:string)=>string,value:unknown)=>{
+    args.push(value);conditions.push(template('$'+args.length));
+   };
+   if(q.category_id!==undefined)bind(x=>'p.category_id='+x,positiveId(q.category_id,'category_id'));
+   if(q.brand!==undefined)bind(x=>'lower(p.brand)=lower('+x+')',requiredText(q.brand,'brand',100));
+   if(q.gender!==undefined)bind(x=>'p.gender='+x,normalizeGender(q.gender));
+   if(q.price_min!==undefined)bind(x=>'p.base_price_vnd>='+x,priceVnd(q.price_min));
+   if(q.price_max!==undefined)bind(x=>'p.base_price_vnd<='+x,priceVnd(q.price_max));
+   const available=q.in_stock===true||q.in_stock==='true';
+   const soldOut=q.in_stock===false||q.in_stock==='false';
+   if(q.in_stock!==undefined&&!available&&!soldOut)
+    throw new CatalogError('VALIDATION_FAILED','in_stock must be boolean');
+   if(q.size!==undefined||q.color!==undefined||available||soldOut){
+    const variantConditions=['v.product_id=p.id',"v.status='ACTIVE'","v.inventory_sync_status='SYNCED'"];
+    if(q.size!==undefined){args.push(requiredText(q.size,'size',30));variantConditions.push('v.size=$'+args.length);}
+    if(q.color!==undefined){args.push(requiredText(q.color,'color',80));variantConditions.push('v.color=$'+args.length);}
+    if(available)variantConditions.push('ip.available_qty>0');
+    if(soldOut)variantConditions.push('(ip.available_qty IS NULL OR ip.available_qty=0)');
+    const exists="EXISTS(SELECT 1 FROM catalog_variants v LEFT JOIN catalog_inventory_projection ip ON ip.variant_id=v.id WHERE "+
+      variantConditions.join(' AND ')+')';
+    conditions.push(exists);
+   }
+   const where=conditions.join(' AND ');
+   const count=await this.db.query<{total:string}>('SELECT count(*) AS total FROM catalog_products p WHERE '+where,args);
    const records=await this.db.query<ProductRecord>(
-    'SELECT * FROM catalog_products WHERE '+where.join(' AND ')+
-    ' ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3',[...args,limit,(page-1)*limit]);
-   return {data:records.rows,meta:{page,limit,source:'postgres_fallback',degraded:true}};
+    'SELECT p.* FROM catalog_products p WHERE '+where+
+    ' ORDER BY p.created_at DESC,p.id DESC LIMIT $'+(args.length+1)+' OFFSET $'+(args.length+2),
+    [...args,limit,(page-1)*limit]);
+   return {data:records.rows,meta:{total:Number(count.rows[0].total),page,limit,
+    source:'postgres_fallback',degraded:true}};
   }
  }
  async close(){if(this.timer)clearInterval(this.timer)}
