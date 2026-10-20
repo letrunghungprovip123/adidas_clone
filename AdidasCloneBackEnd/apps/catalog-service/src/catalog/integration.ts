@@ -110,7 +110,7 @@ export class CatalogInventoryBridge {
    `SELECT v.id,v.sku,v.version,v.status,p.status AS product_status
     FROM catalog_variants v JOIN catalog_products p ON p.id=v.product_id
     WHERE v.inventory_sync_status<>'SYNCED' OR v.inventory_status_synced_version<v.version
-    ORDER BY v.id LIMIT $1`,[limit]);
+    ORDER BY v.created_at DESC,v.id ASC LIMIT $1`,[limit]);
   for(const v of rs.rows){
    try{
     await this.command(COMMANDS.inventoryVariantEnsure,{variant_id:v.id,sku:v.sku});
