@@ -1,3 +1,7 @@
+# V2 Docker build context: only V2 apps/libs and backend build metadata.
+# Never send V1 backend services or local credentials into a V2 build.
+api_gateway
+service
 node_modules
 dist
 coverage
@@ -6,4 +10,10 @@ infra
 docs
 .env
 .env.*
+**/.env
+**/.env.*
+**/firebase-admin-key.json
+**/*private*.pem
+**/*.key
+**/id_rsa
 *.log
