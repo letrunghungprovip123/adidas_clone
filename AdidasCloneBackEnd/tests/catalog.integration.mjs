@@ -111,6 +111,13 @@ test('Catalog V2 migration, business and NFR: real PostgreSQL',async t=>{
   const result=await search.search({q:'UltraBoost',limit:12,page:1});
   assert.equal(result.meta.source,'postgres_fallback');
   assert.ok(result.data.some(p=>p.id===1));
+  const wrongGender=await search.search({q:'UltraBoost',gender:'WOMEN'});
+  assert.equal(wrongGender.data.some(p=>p.id===1),false);
+  const abovePrice=await search.search({q:'UltraBoost',price_min:'100000000000.00'});
+  assert.equal(abovePrice.data.length,0);
+  const noStock=await search.search({q:'UltraBoost',in_stock:true});
+  assert.equal(noStock.data.length,0);
+  await assert.rejects(search.search({q:'UltraBoost',in_stock:'invalid'}),code('VALIDATION_FAILED'));
  });
  await t.test('Archive retains historical records and refuses checkout quote',async()=>{
   const old=await catalog.detail(draft.id);
