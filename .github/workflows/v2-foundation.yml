@@ -37,6 +37,8 @@ jobs:
         run: npm test
       - name: Compile all V2 apps
         run: npm run build
+      - name: Exercise live V2 gateway and all service skeletons
+        run: npm run smoke:foundation
       - name: Compose schema validation (no containers started)
         env:
           V2_POSTGRES_PASSWORD: ci-placeholder-not-a-real-secret
