@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS catalog_variants(
  inventory_sync_status TEXT NOT NULL DEFAULT 'PENDING'
    CHECK(inventory_sync_status IN('PENDING','SYNCED','ERROR')),
  version BIGINT NOT NULL DEFAULT 1,
+ inventory_status_synced_version BIGINT NOT NULL DEFAULT 0,
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

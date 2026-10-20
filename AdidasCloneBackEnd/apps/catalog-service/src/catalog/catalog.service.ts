@@ -137,6 +137,7 @@ export class CatalogService{
      published_at=CASE WHEN $2='PUBLISHED' THEN clock_timestamp() ELSE published_at END,
      archived_at=CASE WHEN $2='ARCHIVED' THEN clock_timestamp() ELSE archived_at END
      WHERE id=$1 RETURNING *`,[id,action]);
+   await c.query('UPDATE catalog_variants SET inventory_status_synced_version=0 WHERE product_id=$1',[id]);
    await this.publishEvent(c,action==='ARCHIVED'?'catalog.product.deleted.v1':'catalog.product.updated.v1',
     {id,version:Number(r.rows[0].version),status:action});
    return r.rows[0];
@@ -163,7 +164,7 @@ export class CatalogService{
    if(!r.rowCount)throw new CatalogError('NOT_FOUND','Variant missing');
    if(r.rows[0].status===action)return r.rows[0];
    const changed=await c.query<VariantRow>(
-    'UPDATE catalog_variants SET status=$2,version=version+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING *',[id,action]);
+    'UPDATE catalog_variants SET status=$2,version=version+1,inventory_status_synced_version=0,updated_at=clock_timestamp() WHERE id=$1 RETURNING *',[id,action]);
    await this.publishEvent(c,'catalog.variant.status-changed.v1',{id,status:action,version:Number(changed.rows[0].version)});
    return changed.rows[0];
   });
@@ -285,7 +286,22 @@ export class CatalogService{
    const patch=Object.entries(fields),args=patch.map(x=>x[1]);
    const sets=patch.map(([key],i)=>key+'=$'+(i+1)).join(',');
    const updated=await c.query<VariantRow>(
-    'UPDATE catalog_variants SET '+sets+',version=version+1,updated_at=clock_timestamp() WHERE id=$'+(args.length+1)+' RETURNING *',
+    'UPDATE catalog_variants SET '+sets+',version=version+1,inventory_status_synced_version=0,updated_at=clock_timestamp() WHERE id=+(args.length+1)+' RETURNING *',
+    [...args,id]);
+   await this.publishEvent(c,'catalog.variant.updated.v1',{id,product_id:updated.rows[0].product_id});
+   return updated.rows[0];
+  });
+ }
+ async priceHistory(productId:number){
+  positiveId(productId);
+  const rows=await this.db.query(
+   'SELECT old_price_vnd,new_price_vnd,product_version,actor_id,reason,created_at FROM catalog_price_history WHERE product_id=$1 ORDER BY created_at DESC LIMIT 100',
+   [productId]);
+  return rows.rows;
+ }
+
+}
++(args.length+1)+' RETURNING *',
     [...args,id]);
    await this.publishEvent(c,'catalog.variant.updated.v1',{id,product_id:updated.rows[0].product_id});
    return updated.rows[0];

@@ -106,15 +106,22 @@ export class CatalogInventoryBridge {
   finally{this.busy=false}
  }
  async provision(limit=10){
-  const rs=await this.db.query<{id:number;sku:string}>(
-   `SELECT id,sku FROM catalog_variants WHERE inventory_sync_status<>'SYNCED'
-    ORDER BY id LIMIT $1`,[limit]);
+  const rs=await this.db.query<{id:number;sku:string;version:string;status:string;product_status:string}>(
+   `SELECT v.id,v.sku,v.version,v.status,p.status AS product_status
+    FROM catalog_variants v JOIN catalog_products p ON p.id=v.product_id
+    WHERE v.inventory_sync_status<>'SYNCED' OR v.inventory_status_synced_version<v.version
+    ORDER BY v.id LIMIT $1`,[limit]);
   for(const v of rs.rows){
    try{
     await this.command(COMMANDS.inventoryVariantEnsure,{variant_id:v.id,sku:v.sku});
-    await this.db.query(`UPDATE catalog_variants SET inventory_sync_status='SYNCED'
-     WHERE id=$1 AND inventory_sync_status<>'SYNCED'`,[v.id]);
-   }catch{this.logger.warn('Variant provisioning retry '+v.id);}
+    const status=v.status==='ACTIVE'&&v.product_status==='PUBLISHED'?'ACTIVE':'DISABLED';
+    await this.command(COMMANDS.inventoryVariantSetStatus,{variant_id:v.id,status});
+    await this.db.query(`UPDATE catalog_variants SET inventory_sync_status='SYNCED',
+      inventory_status_synced_version=$2
+     WHERE id=$1 AND version=$2`,[v.id,v.version]);
+   }catch{
+    this.logger.warn('Variant registration/status propagation retry '+v.id);
+   }
   }
  }
  /** Bounded ongoing reconciliation, independent of event delivery. */
