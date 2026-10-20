@@ -286,7 +286,7 @@ export class CatalogService{
    const patch=Object.entries(fields),args=patch.map(x=>x[1]);
    const sets=patch.map(([key],i)=>key+'=$'+(i+1)).join(',');
    const updated=await c.query<VariantRow>(
-    'UPDATE catalog_variants SET '+sets+',version=version+1,inventory_status_synced_version=0,updated_at=clock_timestamp() WHERE id=' RETURNING *',
+    'UPDATE catalog_variants SET '+sets+',version=version+1,inventory_status_synced_version=0,updated_at=clock_timestamp() WHERE id=$'+(args.length+1)+' RETURNING *',
     [...args,id]);
    await this.publishEvent(c,'catalog.variant.updated.v1',{id,product_id:updated.rows[0].product_id});
    return updated.rows[0];
