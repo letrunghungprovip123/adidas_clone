@@ -1,4 +1,5 @@
 name: V2 Inventory One-time Lock Refresh
+# Second and final lock refresh includes Nest RabbitMQ transport connection manager
 on:
   push:
     branches: [refactor/v2-phase1-foundation]
