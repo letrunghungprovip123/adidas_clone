@@ -61,6 +61,18 @@ export class InventoryService {
        (id,variant_id,reservation_id,operation_key,movement_type,delta_on_hand,delta_reserved)
        VALUES($1,$2,$3,$4,$5,$6,$7)`,
       [randomUUID(),variantId,reservationId,key,type,onHand,reserved]);
+    await this.emitStockChanged(client,variantId);
+  }
+  private async emitStockChanged(client:PoolClient,variantId:number) {
+    const r=await client.query<{on_hand_qty:number;reserved_qty:number;version:string;status:string}>(
+      'SELECT on_hand_qty,reserved_qty,version,status FROM inventory_stock WHERE variant_id=$1',[variantId]);
+    if(!r.rowCount)throw new Error('Cannot emit stock for missing variant');
+    const s=r.rows[0];
+    await this.emit(client,'inventory.stock-changed.v1',{
+      variant_id:variantId,on_hand_qty:s.on_hand_qty,reserved_qty:s.reserved_qty,
+      available_qty:s.status==='ACTIVE'?s.on_hand_qty-s.reserved_qty:0,
+      stock_version:Number(s.version),status:s.status
+    });
   }
   private async emit(client: PoolClient, topic: string, payload: Record<string,unknown>) {
     const message_id=randomUUID();
@@ -255,4 +267,36 @@ export class InventoryService {
     }
     return expired;
   }
+  /** Only trusted Catalog consumer may provision new variants; never changes existing stock. */
+  async ensureVariant(variantId:number,sku:string){
+    assertPositiveInteger(variantId,'variant_id',2147483647);
+    assertIdentifier(sku,'sku');
+    return this.db.transaction(async client=>{
+      const insert=await client.query(
+        `INSERT INTO inventory_stock(variant_id,sku,on_hand_qty,reserved_qty)
+         VALUES($1,$2,0,0) ON CONFLICT DO NOTHING RETURNING variant_id`,[variantId,sku]);
+      const stored=await client.query<{sku:string|null}>('SELECT sku FROM inventory_stock WHERE variant_id=$1 FOR UPDATE',[variantId]);
+      if(!stored.rowCount || (stored.rows[0].sku!==null && stored.rows[0].sku!==sku))
+        throw new InventoryError('CONFLICT','Variant ID mapped to another SKU');
+      if(stored.rows[0].sku===null)
+        await client.query('UPDATE inventory_stock SET sku=$2 WHERE variant_id=$1',[variantId,sku]);
+      if(insert.rowCount)await this.emitStockChanged(client,variantId);
+      return {variant_id:variantId,provisioned:true,created:insert.rowCount===1};
+    });
+  }
+  async setVariantStatus(variantId:number,status:'ACTIVE'|'DISABLED'){
+    assertPositiveInteger(variantId,'variant_id',2147483647);
+    if(status!=='ACTIVE'&&status!=='DISABLED')
+      throw new InventoryError('VALIDATION_FAILED','Invalid stock status');
+    return this.db.transaction(async client=>{
+      const r=await client.query(
+        `UPDATE inventory_stock SET status=$2,version=version+1,updated_at=clock_timestamp()
+         WHERE variant_id=$1 AND status<>$2 RETURNING variant_id`,[variantId,status]);
+      if(r.rowCount)await this.emitStockChanged(client,variantId);
+      const present=await client.query('SELECT 1 FROM inventory_stock WHERE variant_id=$1',[variantId]);
+      if(!present.rowCount)throw new InventoryError('NOT_FOUND','Unknown variant');
+      return {variant_id:variantId,status};
+    });
+  }
+
 }

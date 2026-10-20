@@ -72,9 +72,10 @@ CREATE TABLE IF NOT EXISTS catalog_inventory_projection(
  on_hand_qty INTEGER NOT NULL CHECK(on_hand_qty>=0),
  reserved_qty INTEGER NOT NULL CHECK(reserved_qty>=0 AND reserved_qty<=on_hand_qty),
  available_qty INTEGER NOT NULL CHECK(available_qty>=0),
+ stock_status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(stock_status IN ('ACTIVE','DISABLED')),
  stock_version BIGINT NOT NULL DEFAULT 0,
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
- CHECK(available_qty=on_hand_qty-reserved_qty)
+ CHECK(available_qty=CASE WHEN stock_status='ACTIVE' THEN on_hand_qty-reserved_qty ELSE 0 END)
 );
 CREATE TABLE IF NOT EXISTS catalog_inbox(
  message_id UUID PRIMARY KEY,topic TEXT NOT NULL,processed_at TIMESTAMPTZ NOT NULL DEFAULT now()

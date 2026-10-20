@@ -13,6 +13,8 @@ export const COMMANDS = {
   inventoryReservationCommit: 'inventory.reservation.commit.v1',
   inventoryReservationStatusGet: 'inventory.reservation.status.get.v1',
   inventoryAvailabilityGet: 'inventory.availability.get.v1',
+  inventoryVariantEnsure: 'inventory.variant.ensure.v1',
+  inventoryVariantSetStatus: 'inventory.variant.set-status.v1',
   orderPaymentQuoteGet: 'order.payment-quote.get.v1',
   paymentIntentCreate: 'payment.intent.create.v1',
   paymentIntentCancelOrStatus: 'payment.intent.cancel-or-status.v1'
@@ -24,6 +26,9 @@ export const EVENTS = {
   inventoryReleased: 'inventory.released.v1',
   inventoryExpired: 'inventory.expired.v1',
   inventoryAdjusted: 'inventory.adjusted.v1',
+  inventoryStockChanged: 'inventory.stock-changed.v1',
+  catalogVariantCreated: 'catalog.variant.created.v1',
+  catalogVariantStatusChanged: 'catalog.variant.status-changed.v1',
   paymentSucceeded: 'payment.succeeded.v1',
   paymentAttemptFailed: 'payment.attempt-failed.v1',
   paymentCanceled: 'payment.canceled.v1',

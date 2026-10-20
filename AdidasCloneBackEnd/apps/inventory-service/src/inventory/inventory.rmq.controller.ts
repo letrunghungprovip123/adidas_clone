@@ -50,4 +50,13 @@ export class InventoryRmqController {
   status(@Payload() env:unknown,@Ctx() context:RmqContext) {
     return this.handle(context,env,p=>this.inventory.status(p.reservation_id as string));
   }
+  @MessagePattern({cmd:COMMANDS.inventoryVariantEnsure})
+  ensureVariant(@Payload() env:unknown,@Ctx() context:RmqContext) {
+    return this.handle(context,env,p=>this.inventory.ensureVariant(p.variant_id as number,p.sku as string));
+  }
+  @MessagePattern({cmd:COMMANDS.inventoryVariantSetStatus})
+  setStatus(@Payload() env:unknown,@Ctx() context:RmqContext) {
+    return this.handle(context,env,p=>this.inventory.setVariantStatus(p.variant_id as number,p.status as 'ACTIVE'|'DISABLED'));
+  }
+
 }

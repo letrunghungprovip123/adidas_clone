@@ -44,7 +44,7 @@ const inserts=(table,cols,rs)=>{for(const row of rs){out.push('INSERT INTO '+tab
 out.push('BEGIN;');
 inserts('catalog_categories',['id','name','slug','description'],rows.categories);
 inserts('catalog_products',['id','name','slug','description','base_price_vnd','category_id','brand','gender','attributes','created_at','status'],
- rows.products.map(r=>[...r.slice(0,7),gender(r[7]),r[8],r[9],'PUBLISHED']));
+ rows.products.map(r=>[...r.slice(0,4),Number(r[4]),r[5],r[6],gender(r[7]),r[8],r[9],'PUBLISHED']));
 inserts('catalog_variants',['id','product_id','size','color','sku','inventory_sync_status'],
  rows.product_variants.map(r=>[r[0],r[1],r[2],r[3],r[5],'SYNCED']));
 inserts('catalog_product_images',['id','product_id','image_url','alt_text','sort_order','is_primary'],
