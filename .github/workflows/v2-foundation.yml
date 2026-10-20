@@ -22,6 +22,15 @@ jobs:
   foundation:
     runs-on: ubuntu-latest
     services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        env:
+          RABBITMQ_DEFAULT_USER: ci_inventory
+          RABBITMQ_DEFAULT_PASS: ci-inventory-rabbit-password
+        ports: ['5672:5672']
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s --health-timeout 10s --health-retries 20
       postgres:
         image: postgres:16
         env:
@@ -38,6 +47,8 @@ jobs:
       V2_INVENTORY_DB_USER: v2_local
       V2_INVENTORY_DB_PASSWORD: ci-inventory-only-password
       V2_INVENTORY_DB_NAME: inventory_db
+      V2_INVENTORY_RMQ_USER: ci_inventory
+      V2_INVENTORY_RMQ_PASSWORD: ci-inventory-rabbit-password
     defaults:
       run:
         working-directory: AdidasCloneBackEnd
@@ -60,6 +71,8 @@ jobs:
         run: npm run migrate:inventory
       - name: Inventory domain integration checks against real PostgreSQL
         run: npm run test:inventory
+      - name: Verify real RabbitMQ request-response and event outbox
+        run: npm run test:inventory:rmq
       - name: Check original seed variant parser without writing to any database
         run: npm run seed:inventory:check
       - name: Production dependency high severity guard
