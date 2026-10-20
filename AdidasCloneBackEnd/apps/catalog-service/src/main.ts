@@ -30,7 +30,7 @@ async function bootstrap(){
   await app.startAllMicroservices();
  }
  app.enableShutdownHooks();
- await app.listen(readPort(process.env.PORT,4103),'0.0.0.0');
+ await app.listen(readPort(process.env.PORT, 4103),'0.0.0.0');
  if(rmq){
   bridge=new CatalogInventoryBridge(app.get(CatalogDatabase),brokerUrl());
   try{await bridge.start()}catch(e){console.error('Catalog integration will retry next restart: '+(e instanceof Error?e.message:'error'))}
