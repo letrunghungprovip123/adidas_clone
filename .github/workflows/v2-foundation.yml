@@ -7,6 +7,7 @@ on:
       - 'AdidasCloneBackEnd/libs/**'
       - 'AdidasCloneBackEnd/tests/**'
       - 'AdidasCloneBackEnd/scripts/phase2/**'
+      - 'AdidasCloneBackEnd/scripts/phase3/**'
       - 'AdidasCloneBackEnd/infra/**'
       - 'AdidasCloneBackEnd/package.json'
       - 'AdidasCloneBackEnd/package-lock.json'
@@ -22,6 +23,16 @@ jobs:
   foundation:
     runs-on: ubuntu-latest
     services:
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          ES_JAVA_OPTS: '-Xms512m -Xmx512m'
+        ports: ['9200:9200']
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 5s --health-timeout 10s --health-retries 40
       rabbitmq:
         image: rabbitmq:3-management
         env:
@@ -49,6 +60,14 @@ jobs:
       V2_INVENTORY_DB_NAME: inventory_db
       V2_INVENTORY_RMQ_USER: ci_inventory
       V2_INVENTORY_RMQ_PASSWORD: ci-inventory-rabbit-password
+      V2_CATALOG_DB_HOST: 127.0.0.1
+      V2_CATALOG_DB_PORT: '5432'
+      V2_CATALOG_DB_USER: v2_local
+      V2_CATALOG_DB_PASSWORD: ci-inventory-only-password
+      V2_CATALOG_DB_NAME: catalog_db
+      V2_CATALOG_RMQ_USER: ci_inventory
+      V2_CATALOG_RMQ_PASSWORD: ci-inventory-rabbit-password
+      V2_CATALOG_ES_URL: http://127.0.0.1:9200
     defaults:
       run:
         working-directory: AdidasCloneBackEnd
@@ -73,6 +92,14 @@ jobs:
         run: npm run test:inventory
       - name: Verify real RabbitMQ request-response and event outbox
         run: npm run test:inventory:rmq
+      - name: Prepare isolated Catalog database in CI PostgreSQL
+        run: node -e "const{Pool}=require('pg');const p=new Pool({host:'127.0.0.1',user:'v2_local',password:process.env.V2_CATALOG_DB_PASSWORD,database:'postgres'});p.query('CREATE DATABASE catalog_db').then(()=>p.end()).catch(e=>{console.error(e);process.exit(1)})"
+      - name: Apply V2 Catalog migration
+        run: npm run migrate:catalog
+      - name: Verify and import original Catalog seed
+        run: npm run seed:catalog:check && npm run seed:catalog
+      - name: Catalog PostgreSQL domain integration
+        run: npm run test:catalog
       - name: Check original seed variant parser without writing to any database
         run: npm run seed:inventory:check
       - name: Production dependency high severity guard
