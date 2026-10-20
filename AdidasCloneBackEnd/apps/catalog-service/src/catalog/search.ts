@@ -1,12 +1,14 @@
 import {Logger} from '@nestjs/common';
 import {CatalogDatabase} from './database';
-import {CatalogError,assertInputFields,boundedPage,requiredText,priceVnd,normalizeGender} from './catalog.types';
+import {assertInputFields,boundedPage,requiredText,priceVnd,normalizeGender} from './catalog.types';
 type ProductRecord={id:number;name:string;slug:string;description:string|null;brand:string|null;
  gender:string;category_id:number|null;base_price_vnd:string;status:string;version:string;created_at:Date};
 export class CatalogSearch{
  private timer?:NodeJS.Timeout;private busy=false;private activeIndex='catalog_products_v1';
  private readonly log=new Logger(CatalogSearch.name);
  constructor(private readonly db:CatalogDatabase,private readonly endpoint:string){}
+ // Elasticsearch JSON responses have provider-specific dynamic shapes validated at use sites.
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
  private async call(path:string,init:RequestInit={}):Promise<any>{
   const response=await fetch(this.endpoint+path,{...init,
     headers:{'content-type':'application/json',...(init.headers||{})},signal:AbortSignal.timeout(4000)});
@@ -153,7 +155,7 @@ export class CatalogSearch{
    const map=new Map(authoritative.rows.map(x=>[x.id,x]));
    return {data:ids.filter(id=>map.has(id)).map(id=>map.get(id)),meta:{
     total:Number(raw.hits?.total?.value??0),page,limit,source:'elasticsearch'}};
-  }catch(e){
+  }catch{
    this.log.warn('ES unavailable; using bounded PostgreSQL fallback');
    const where=['status=\'PUBLISHED\'','(name ILIKE $1 OR brand ILIKE $1 OR description ILIKE $1)'];
    const args:unknown[]=['%'+text.replaceAll('%','\\%').replaceAll('_','\\_')+'%'];

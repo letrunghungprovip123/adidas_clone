@@ -13,6 +13,8 @@ export class CatalogRmqController {
  private readonly log=new Logger(CatalogRmqController.name);
  constructor(private readonly catalog:CatalogService,
   private readonly media:CatalogMediaReviewsAI,private readonly search:CatalogSearch){}
+ // Typed domain validators check all fields; the transport adapter accepts heterogeneous command payloads.
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
  private async run(context:RmqContext,input:unknown,write:boolean,fn:(p:Record<string,any>)=>Promise<unknown>){
   const channel=context.getChannelRef(),message=context.getMessage();
   try{

@@ -115,7 +115,7 @@ export class CatalogMediaReviewsAI {
    const body=await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>}}>};
    const text=body.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
    return {text:text?.slice(0,500)||fallback,recommendations,source:text?'gemini':'catalog'};
-  }catch(e){this.log.warn('Gemini unavailable; returning safe Catalog suggestions');
+  }catch{this.log.warn('Gemini unavailable; returning safe Catalog suggestions');
    return {text:fallback,recommendations,source:'catalog'};
   }
  }

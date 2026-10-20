@@ -114,7 +114,7 @@ export class CatalogInventoryBridge {
     await this.command(COMMANDS.inventoryVariantEnsure,{variant_id:v.id,sku:v.sku});
     await this.db.query(`UPDATE catalog_variants SET inventory_sync_status='SYNCED'
      WHERE id=$1 AND inventory_sync_status<>'SYNCED'`,[v.id]);
-   }catch(e){this.logger.warn('Variant provisioning retry '+v.id);}
+   }catch{this.logger.warn('Variant provisioning retry '+v.id);}
   }
  }
  /** Bounded ongoing reconciliation, independent of event delivery. */
@@ -133,7 +133,7 @@ export class CatalogInventoryBridge {
        available_qty:result.available_qty,stock_version:Number(result.stock_version),status:result.status
       }
     });
-   }catch{} // Future reconciliation rounds retry independently.
+   }catch{ /* Future reconciliation rounds retry independently. */ }
   }
  }
  async close(){

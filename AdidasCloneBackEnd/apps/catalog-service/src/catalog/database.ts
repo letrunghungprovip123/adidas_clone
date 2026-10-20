@@ -17,7 +17,7 @@ export class CatalogDatabase implements OnModuleDestroy {
  async transaction<T>(fn:(c:PoolClient)=>Promise<T>):Promise<T>{
   const c=await this.pool.connect();
   try{await c.query('BEGIN');const result=await fn(c);await c.query('COMMIT');return result}
-  catch(e){try{await c.query('ROLLBACK')}catch{}throw e}finally{c.release()}
+  catch(e){try{await c.query('ROLLBACK')}catch{ /* original error takes precedence */ }throw e}finally{c.release()}
  }
  async ready(){await this.pool.query('SELECT id FROM catalog_products LIMIT 1')}
  async onModuleDestroy(){await this.pool.end()}
