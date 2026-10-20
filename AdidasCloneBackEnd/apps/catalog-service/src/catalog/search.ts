@@ -165,8 +165,8 @@ export class CatalogSearch{
   }catch{
    this.log.warn('ES unavailable; using bounded PostgreSQL fallback');
    const conditions=["p.status='PUBLISHED'",
-     "(p.name ILIKE $1 ESCAPE '\\\\' OR p.brand ILIKE $1 ESCAPE '\\\\' OR p.description ILIKE $1 ESCAPE '\\\\')"];
-   const pattern='%'+text.replaceAll('\\\\','\\\\\\\\').replaceAll('%','\\\\%').replaceAll('_','\\\\_')+'%';
+     "(p.name ILIKE $1 ESCAPE '!' OR p.brand ILIKE $1 ESCAPE '!' OR p.description ILIKE $1 ESCAPE '!')"];
+   const pattern='%'+text.replaceAll('!','!!').replaceAll('%','!%').replaceAll('_','!_')+'%';
    const args:unknown[]=[pattern];
    const bind=(template:(param:string)=>string,value:unknown)=>{
     args.push(value);conditions.push(template('$'+args.length));
