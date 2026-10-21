@@ -15,7 +15,7 @@ test('Customer P4: V1 seed reconciliation and isolated transactional domains',as
   (SELECT count(*)::integer FROM customer_seed_loyalty_rows) legacy_loyalty,
   (SELECT count(*)::integer FROM customer_wishlists) wishlists,
   (SELECT count(*)::integer FROM loyalty_wallets) wallets`);
- assert.deepEqual(count.rows[0],{profiles:19,addresses:20,legacy_loyalty:7,wishlists:1,wallets:4});
+ assert.deepEqual(count.rows[0],{profiles:19,addresses:20,legacy_loyalty:7,wishlists:1,wallets:19});
  const reconciled=await db.query(`SELECT
   (SELECT coalesce(sum(points),0)::bigint FROM customer_seed_loyalty_rows) old,
   (SELECT coalesce(sum(delta_points),0)::bigint FROM loyalty_ledger WHERE entry_kind='OPENING') ledger,

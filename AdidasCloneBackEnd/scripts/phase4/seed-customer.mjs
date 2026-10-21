@@ -45,7 +45,7 @@ s.push(...q('customer_wishlists',['customer_id','product_id','created_at'],
  rows.wishlists.map(r=>[r[1],r[2],r[3]])));
 s.push(...q('customer_seed_loyalty_rows',['source_id','customer_id','points','source_updated_at'],
  rows.loyalty_points.map(r=>r)));
-s.push(...q('loyalty_wallets',['customer_id','posted_points'],[...groups].map(([id,n])=>[id,n])));
+s.push(...q('loyalty_wallets',['customer_id','posted_points'],rows.users.map(r=>[r[0],groups.get(Number(r[0]))??0])));
 for(const [id,n] of groups){
  if(!n)continue;
  s.push('INSERT INTO loyalty_ledger(customer_id,entry_kind,delta_points,source_type,source_ref,reason) VALUES ('+
