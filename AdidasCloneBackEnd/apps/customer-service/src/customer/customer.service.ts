@@ -255,7 +255,7 @@ export class CustomerService {
      WHERE customer_id=$1 AND reserved_points>=$2 AND posted_points>=$2 RETURNING customer_id`,[now.customer_id,now.points]);
    if(!ok.rowCount)throw new CustomerError('CONFLICT','Wallet is inconsistent');
    await c.query(`INSERT INTO loyalty_ledger(customer_id,entry_kind,delta_points,source_type,source_ref,reason)
-    VALUES($1,'REDEEM',-$2,'ORDER',$3,'Checkout loyalty redemption')`,[now.customer_id,now.points,now.checkout_ref]);
+    VALUES($1,'REDEEM',-($2::bigint),'ORDER',$3,'Checkout loyalty redemption')`,[now.customer_id,now.points,now.checkout_ref]);
   }else{
    const ok=await c.query(`UPDATE loyalty_wallets SET reserved_points=reserved_points-$2,version=version+1,
     updated_at=clock_timestamp() WHERE customer_id=$1 AND reserved_points>=$2 RETURNING customer_id`,[now.customer_id,now.points]);
