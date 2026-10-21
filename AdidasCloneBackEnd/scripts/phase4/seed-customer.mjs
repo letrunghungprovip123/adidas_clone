@@ -41,6 +41,12 @@ s.push(...q('customer_profiles',['customer_id','display_name','avatar_url','phon
  rows.users.map(r=>[r[0],r[3],r[4],r[5],r[9]])));
 s.push(...q('customer_addresses',['id','customer_id','receiver_name','phone','address_line','city','district','is_default','created_at'],
  rows.addresses.map(r=>[r[0],r[1],r[2]??'Legacy recipient',r[3]??'',r[4]??'',r[5]??'',r[6]??'',r[7]==='true',r[8]])));
+// Existing V1 seed has no default addresses: select oldest active address deterministically.
+s.push(`WITH first_addresses AS (
+ SELECT customer_id,min(id) AS first_id FROM customer_addresses
+ WHERE deleted_at IS NULL GROUP BY customer_id HAVING NOT bool_or(is_default)
+) UPDATE customer_addresses a SET is_default=true
+FROM first_addresses x WHERE a.id=x.first_id;`);
 s.push(...q('customer_wishlists',['customer_id','product_id','created_at'],
  rows.wishlists.map(r=>[r[1],r[2],r[3]])));
 s.push(...q('customer_seed_loyalty_rows',['source_id','customer_id','points','source_updated_at'],

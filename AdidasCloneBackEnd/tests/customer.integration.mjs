@@ -22,6 +22,9 @@ test('Customer P4: V1 seed reconciliation and isolated transactional domains',as
   (SELECT coalesce(sum(posted_points),0)::bigint FROM loyalty_wallets) wallet`);
  assert.equal(reconciled.rows[0].old,reconciled.rows[0].ledger);
  assert.equal(reconciled.rows[0].old,reconciled.rows[0].wallet);
+ const addresses=await db.query(`SELECT count(DISTINCT customer_id)::integer AS owners,
+   count(*) FILTER(WHERE is_default)::integer AS defaults FROM customer_addresses WHERE deleted_at IS NULL`);
+ assert.equal(addresses.rows[0].owners,addresses.rows[0].defaults);
  const u=1300000000+Math.floor(Math.random()*10000000),other=u+1;
  await svc.ensureProfile(u,key());await svc.ensureProfile(other,key());
  await t.test('Profile versioning, safe input and idempotency',async()=>{

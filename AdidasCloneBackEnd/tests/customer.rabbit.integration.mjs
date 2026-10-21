@@ -17,10 +17,14 @@ test('Customer RabbitMQ: authorization, saga holds, idempotency and outbox event
  await ch.assertExchange('commerce.events','topic',{durable:true});
  const {queue}=await ch.assertQueue('',{exclusive:true,autoDelete:true});
  await ch.bindQueue(queue,'commerce.events','customer.loyalty.held.v1');
+ const catalog=spawn(process.execPath,['dist/apps/catalog-service/src/main.js'],{
+  env:{...process.env,V2_CATALOG_ENABLED:'true',V2_CATALOG_RMQ_ENABLED:'true',
+   V2_CATALOG_RMQ_HOST:'127.0.0.1',V2_CATALOG_SEARCH_ENABLED:'false',PORT:'4103'},
+  stdio:['ignore','pipe','pipe']});
  const child=spawn(process.execPath,['dist/apps/customer-service/src/main.js'],{
   env:{...process.env,V2_CUSTOMER_ENABLED:'true',V2_CUSTOMER_RMQ_ENABLED:'true',
    V2_CUSTOMER_RMQ_HOST:'127.0.0.1',PORT:'4102'},stdio:['ignore','pipe','pipe']});
- let logs='';for(const stream of [child.stdout,child.stderr])
+ let logs='';for(const stream of [child.stdout,child.stderr,catalog.stdout,catalog.stderr])
   stream.on('data',v=>{logs+=String(v);if(logs.length>6000)logs=logs.slice(-6000)});
  let proxy;
  try{
@@ -32,6 +36,13 @@ test('Customer RabbitMQ: authorization, saga holds, idempotency and outbox event
    await sleep(250);
   }
   assert.ok(started,'Customer should run real PostgreSQL/RabbitMQ: '+logs);
+  let catalogReady=false;
+  for(let i=0;i<80;i++){
+   try{const r=await fetch('http://127.0.0.1:4103/health/ready',{signal:AbortSignal.timeout(650)});
+    if(r.ok){catalogReady=true;break}}catch{}
+   await sleep(250);
+  }
+  assert.ok(catalogReady,'Catalog must serve Wishlist product validation: '+logs);
   proxy=ClientProxyFactory.create({transport:Transport.RMQ,options:{urls:[url],
    queue:'customer.commands.q',queueOptions:{durable:true,arguments:{
     'x-dead-letter-exchange':'customer.dlx','x-dead-letter-routing-key':'customer.failed'}}}});
@@ -50,6 +61,19 @@ test('Customer RabbitMQ: authorization, saga holds, idempotency and outbox event
   assert.equal(other.error.code,'FORBIDDEN');
   const own=await send(COMMANDS.customerProfileGet,{customer_id:a},{kind:'customer',subject_id:String(a)});
   assert.equal(own.ok,true);
+  const wishlistKey=randomUUID();
+  const wished=await send(COMMANDS.customerWishlistAdd,{customer_id:a,product_id:1,idempotency_key:wishlistKey},
+   {kind:'customer',subject_id:String(a)});
+  assert.equal(wished.ok,true);
+  const wishRetry=await send(COMMANDS.customerWishlistAdd,{customer_id:a,product_id:1,idempotency_key:wishlistKey},
+   {kind:'customer',subject_id:String(a)});
+  assert.equal(wishRetry.ok,true);
+  const absent=await send(COMMANDS.customerWishlistAdd,{customer_id:a,product_id:1999999999,idempotency_key:randomUUID()},
+   {kind:'customer',subject_id:String(a)});
+  assert.equal(absent.error.code,'CONFLICT');
+  const unauthWishlist=await send(COMMANDS.customerWishlistGet,{customer_id:a},
+   {kind:'customer',subject_id:String(b)});
+  assert.equal(unauthWishlist.error.code,'FORBIDDEN');
   const unauthorized=await send(COMMANDS.customerLoyaltyHoldCreate,{
    customer_id:a,points:100,checkout_ref:'x',idempotency_key:randomUUID()
   },{kind:'customer',subject_id:String(a)});
@@ -88,7 +112,9 @@ test('Customer RabbitMQ: authorization, saga holds, idempotency and outbox event
   assert.ok(received,'Customer outbox should publish held event');
  }finally{
   if(proxy)await proxy.close().catch(()=>{});
-  child.kill('SIGTERM');await sleep(750);if(child.exitCode===null)child.kill('SIGKILL');
+  child.kill('SIGTERM');catalog.kill('SIGTERM');await sleep(750);
+  if(child.exitCode===null)child.kill('SIGKILL');
+  if(catalog.exitCode===null)catalog.kill('SIGKILL');
   await ch.close();await conn.close();
  }
 });
