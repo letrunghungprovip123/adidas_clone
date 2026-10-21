@@ -86,7 +86,28 @@ services:
   customer-service:
     <<: *v2-app
     command: [node, dist/apps/customer-service/src/main.js]
-    environment: {PORT: '4102', NODE_ENV: development}
+    environment:
+      PORT: '4102'
+      NODE_ENV: development
+      V2_CUSTOMER_ENABLED: 'true'
+      V2_CUSTOMER_RMQ_ENABLED: 'true'
+      V2_CUSTOMER_REWARDS_ENABLED: 'false'
+      V2_CUSTOMER_DB_HOST: postgres
+      V2_CUSTOMER_DB_USER: v2_local
+      V2_CUSTOMER_DB_PASSWORD: ${V2_POSTGRES_PASSWORD:?Set V2_POSTGRES_PASSWORD}
+      V2_CUSTOMER_DB_NAME: customer_db
+      V2_CUSTOMER_RMQ_HOST: rabbitmq
+      V2_CUSTOMER_RMQ_USER: ${V2_RABBITMQ_USER:?Set V2_RABBITMQ_USER}
+      V2_CUSTOMER_RMQ_PASSWORD: ${V2_RABBITMQ_PASSWORD:?Set V2_RABBITMQ_PASSWORD}
+      V2_CUSTOMER_INTERNAL_TOKEN: ${V2_CUSTOMER_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4102/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
   catalog-service:
     <<: *v2-app
     command: [node, dist/apps/catalog-service/src/main.js]

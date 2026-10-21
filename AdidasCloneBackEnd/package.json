@@ -31,7 +31,12 @@
     "seed:catalog": "node scripts/phase3/import-catalog.mjs",
     "test:catalog": "node --test tests/catalog.integration.mjs",
     "test:catalog:rmq": "node --test tests/catalog.rabbit.integration.mjs",
-    "test:catalog:es": "node --test tests/catalog.search.integration.mjs"
+    "test:catalog:es": "node --test tests/catalog.search.integration.mjs",
+    "migrate:customer": "node scripts/phase4/migrate-customer.mjs",
+    "seed:customer:check": "node scripts/phase4/seed-customer.mjs --check",
+    "seed:customer": "node scripts/phase4/import-customer.mjs",
+    "test:customer": "node --test tests/customer.integration.mjs",
+    "test:customer:rmq": "node --test tests/customer.rabbit.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "11.2.7",
