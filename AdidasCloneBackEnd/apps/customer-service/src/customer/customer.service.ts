@@ -146,9 +146,11 @@ export class CustomerService {
   id(customerId,'customer_id');id(addressId,'address_id');
   return this.op('address:delete:'+key,{customerId,addressId},async c=>{
    await this.active(c,customerId);
-   const prev=await c.query<{is_default:boolean}>(`SELECT is_default FROM customer_addresses
-    WHERE id=$1 AND customer_id=$2 AND deleted_at IS NULL FOR UPDATE`,[addressId,customerId]);
-   if(!prev.rowCount)return {deleted:false};
+   const prev=await c.query<{is_default:boolean;customer_id:number;deleted_at:Date|null}>(`SELECT customer_id,is_default,deleted_at
+    FROM customer_addresses WHERE id=$1 FOR UPDATE`,[addressId]);
+   if(!prev.rowCount||prev.rows[0].customer_id!==customerId)
+    throw new CustomerError('NOT_FOUND','Address not owned');
+   if(prev.rows[0].deleted_at)return {deleted:false};
    await c.query(`UPDATE customer_addresses SET deleted_at=clock_timestamp(),is_default=false,
     version=version+1 WHERE id=$1 AND customer_id=$2`,[addressId,customerId]);
    if(prev.rows[0].is_default){
