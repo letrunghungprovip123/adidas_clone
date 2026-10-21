@@ -8,6 +8,7 @@ on:
       - 'AdidasCloneBackEnd/tests/**'
       - 'AdidasCloneBackEnd/scripts/phase2/**'
       - 'AdidasCloneBackEnd/scripts/phase3/**'
+      - 'AdidasCloneBackEnd/scripts/phase4/**'
       - 'AdidasCloneBackEnd/infra/**'
       - 'AdidasCloneBackEnd/package.json'
       - 'AdidasCloneBackEnd/package-lock.json'
@@ -68,6 +69,14 @@ jobs:
       V2_CATALOG_RMQ_USER: ci_inventory
       V2_CATALOG_RMQ_PASSWORD: ci-inventory-rabbit-password
       V2_CATALOG_ES_URL: http://127.0.0.1:9200
+      V2_CUSTOMER_DB_HOST: 127.0.0.1
+      V2_CUSTOMER_DB_PORT: '5432'
+      V2_CUSTOMER_DB_USER: v2_local
+      V2_CUSTOMER_DB_PASSWORD: ci-inventory-only-password
+      V2_CUSTOMER_DB_NAME: customer_db
+      V2_CUSTOMER_RMQ_USER: ci_inventory
+      V2_CUSTOMER_RMQ_PASSWORD: ci-inventory-rabbit-password
+      V2_CUSTOMER_INTERNAL_TOKEN: 'ci-local-trusted-customer-internal-token-123456789'
     defaults:
       run:
         working-directory: AdidasCloneBackEnd
@@ -104,6 +113,14 @@ jobs:
         run: npm run test:catalog:rmq
       - name: Catalog Elasticsearch search/index and atomic reindex
         run: npm run test:catalog:es
+      - name: Create isolated V2 Customer database
+        run: node -e "const{Pool}=require('pg');const p=new Pool({host:'127.0.0.1',user:'v2_local',password:process.env.V2_CUSTOMER_DB_PASSWORD,database:'postgres'});p.query('CREATE DATABASE customer_db').then(()=>p.end()).catch(e=>{console.error(e);process.exit(1)})"
+      - name: Migrate and import checked Customer seed
+        run: npm run migrate:customer && npm run seed:customer:check && npm run seed:customer
+      - name: Customer PostgreSQL P0 business + race tests
+        run: npm run test:customer
+      - name: Customer real RabbitMQ auth and outbox integration
+        run: npm run test:customer:rmq
       - name: Check original seed variant parser without writing to any database
         run: npm run seed:inventory:check
       - name: Production dependency high severity guard
