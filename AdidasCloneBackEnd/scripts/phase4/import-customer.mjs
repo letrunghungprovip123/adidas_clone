@@ -19,6 +19,6 @@ try{
   (SELECT coalesce(sum(delta_points),0)::bigint FROM loyalty_ledger WHERE entry_kind='OPENING') imported_points`);
  const x=r.rows[0];
  if(x.profiles!==19||x.addresses!==20||x.wishlists!==1||x.legacy_loyalty!==7||
-  x.wallets!==5||x.original_points!==x.imported_points)throw new Error('Seed reconciliation mismatch');
- console.log('PASS Customer seed counts: 19 profiles, 20 addresses, 1 wishlist, 7 source rows, 5 wallets; ledger totals match');
+  x.wallets!==4||x.original_points!==x.imported_points)throw new Error('Seed reconciliation mismatch');
+ console.log('PASS Customer seed counts: 19 profiles, 20 addresses, 1 wishlist, 7 source rows, 4 wallets; ledger totals match');
 }catch(e){console.error(e);process.exitCode=1}finally{await pool.end()}

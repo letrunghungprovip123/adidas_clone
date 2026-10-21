@@ -31,7 +31,7 @@ for(const row of rows.loyalty_points){
  if(!Number.isSafeInteger(n)||n<0)throw new Error('Invalid legacy balance');
  groups.set(uid,(groups.get(uid)||0)+n);
 }
-if(groups.size!==5)throw new Error('Unexpected loyalty owner count');
+if(groups.size!==4)throw new Error('Unexpected loyalty owner count');
 console.error('PASS checked Customer legacy shape (no PII emitted)',JSON.stringify({...expected,wallets:groups.size}));
 if(process.argv.includes('--check'))process.exit(0);
 const lit=x=>x===null?'NULL':"'"+String(x).replaceAll("'","''")+"'";

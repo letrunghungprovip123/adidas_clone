@@ -2,7 +2,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {Injectable} from '@nestjs/common';
 import type {PoolClient} from 'pg';
 import {CustomerDatabase} from './database';
-import {CustomerError,id,text,points,fields,page} from './validation';
+import {CustomerError,id,text,points,fields,page,holdId as validateHoldId} from './validation';
 type Hold={id:string;customer_id:number;checkout_ref:string;status:string;points:string;expires_at:Date};
 type Wallet={customer_id:number;posted_points:string;reserved_points:string;version:string};
 const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -264,7 +264,7 @@ export class CustomerService {
   return {id:now.id,customer_id:now.customer_id,status:action,points:Number(now.points)};
  }
  async changeHold(holdId:string,action:'COMMITTED'|'RELEASED'){
-  text(holdId,'hold_id',36);
+  validateHoldId(holdId);
   if(!['COMMITTED','RELEASED'].includes(action))throw new CustomerError('VALIDATION_FAILED','Invalid action');
   return this.db.transaction(async c=>{
    const r=await c.query<Hold>('SELECT * FROM loyalty_holds WHERE id=$1',[holdId]);

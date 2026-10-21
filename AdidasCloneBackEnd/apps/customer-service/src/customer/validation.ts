@@ -11,6 +11,11 @@ export function text(v:unknown,key:string,max=180){
   throw new CustomerError('VALIDATION_FAILED',key+' invalid');
  return v.trim();
 }
+export function holdId(v:unknown){
+ if(typeof v!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v))
+  throw new CustomerError('VALIDATION_FAILED','hold_id must be a UUID');
+ return v;
+}
 export function points(v:unknown){
  if(typeof v!=='number'||!Number.isSafeInteger(v)||v<1||v>1000000000)
   throw new CustomerError('VALIDATION_FAILED','points invalid');
