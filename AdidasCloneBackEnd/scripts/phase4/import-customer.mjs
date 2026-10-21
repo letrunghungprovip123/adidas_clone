@@ -21,4 +21,4 @@ try{
  if(x.profiles!==19||x.addresses!==20||x.wishlists!==1||x.legacy_loyalty!==7||
   x.wallets!==19||x.original_points!==x.imported_points)throw new Error('Seed reconciliation mismatch');
  console.log('PASS Customer seed counts: 19 profiles, 20 addresses, 1 wishlist, 7 source rows belonging to 4 customers, 19 wallets total; ledger totals match');
-}catch(e){console.error(e);process.exitCode=1}finally{await pool.end()}
+}catch(e){console.error('Customer import failed: '+(e?.code||'validation failure'));process.exitCode=1}finally{await pool.end()}

@@ -55,9 +55,27 @@ CREATE TABLE IF NOT EXISTS loyalty_ledger(
  related_entry_id UUID REFERENCES loyalty_ledger(id),
  reason VARCHAR(250),
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
- UNIQUE(source_type,source_ref,entry_kind)
+ UNIQUE(source_type,source_ref)
 );
 CREATE INDEX IF NOT EXISTS loyalty_ledger_history ON loyalty_ledger(customer_id,created_at DESC,id DESC);
+
+-- Ledger is append-only at the database boundary, including through ad hoc SQL clients.
+CREATE OR REPLACE FUNCTION customer_reject_ledger_mutation() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+ RAISE EXCEPTION 'loyalty_ledger is append-only';
+END;
+$fn$;
+DO $block$
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='customer_immutable_ledger'
+                 AND tgrelid='loyalty_ledger'::regclass) THEN
+  CREATE TRIGGER customer_immutable_ledger BEFORE UPDATE OR DELETE ON loyalty_ledger
+   FOR EACH ROW EXECUTE FUNCTION customer_reject_ledger_mutation();
+ END IF;
+END;
+$block$;
+
 CREATE TABLE IF NOT EXISTS customer_operations(
  operation_key VARCHAR(180) PRIMARY KEY,request_hash CHAR(64) NOT NULL,
  result JSONB NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now()

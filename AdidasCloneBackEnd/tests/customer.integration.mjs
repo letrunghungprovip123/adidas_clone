@@ -91,6 +91,17 @@ test('Customer P4: V1 seed reconciliation and isolated transactional domains',as
   assert.equal((await svc.balance(u)).reserved_points,'0');
   await assert.rejects(svc.changeHold(hold.id,'RELEASED'),code('CONFLICT'));
  });
+ await t.test('Ledger is physically immutable and balances match committed entries',async()=>{
+  const rows=await svc.ledger(u);
+  const target=rows.data[0]?.id;
+  assert.ok(target);
+  await assert.rejects(db.query('UPDATE loyalty_ledger SET delta_points=0 WHERE id=$1',[target]));
+  await assert.rejects(db.query('DELETE FROM loyalty_ledger WHERE id=$1',[target]));
+  const w=await svc.balance(u);
+  const posted=await db.query(
+   'SELECT coalesce(sum(delta_points),0)::bigint AS points FROM loyalty_ledger WHERE customer_id=$1',[u]);
+  assert.equal(w.posted_points,posted.rows[0].points);
+ });
  await t.test('Source idempotency rejects double award and undercutting wallet',async()=>{
   const ref='earn:'+key();const k=key();
   const one=await svc.adjustPoints(u,25,'ORDER',ref,k,'Paid order');

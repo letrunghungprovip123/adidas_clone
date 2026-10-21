@@ -25,8 +25,8 @@ export class CustomerRmqController{
  private authenticated(env:Envelope,privileged:boolean,customerId?:number){
   const expected=process.env.V2_CUSTOMER_INTERNAL_TOKEN||'';
   const actual=typeof env?.internal_token==='string'?env.internal_token:'';
-  if(expected.length<32||actual.length!==expected.length||
-    !timingSafeEqual(Buffer.from(actual),Buffer.from(expected)))
+  const e=Buffer.from(expected),a=Buffer.from(actual);
+  if(e.length<32||a.length!==e.length||!timingSafeEqual(a,e))
     throw new CustomerError('UNAUTHORIZED','Trusted internal transport required');
   if(!env.actor||!['customer','admin','system'].includes(env.actor.kind))
     throw new CustomerError('FORBIDDEN','Actor unavailable');
