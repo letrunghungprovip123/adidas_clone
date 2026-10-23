@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { HealthModule } from '../../../libs/health/src/health.module';
+import { IdentityModule } from './identity/identity.module';
 
-/** No business logic, database, or message consumers are connected in Phase 1. */
-@Module({ imports: [HealthModule] })
+@Module({
+  imports: process.env.V2_IDENTITY_ENABLED === 'true' ? [IdentityModule] : [HealthModule]
+})
 export class AppModule {}
