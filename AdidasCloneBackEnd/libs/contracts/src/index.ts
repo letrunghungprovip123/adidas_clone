@@ -54,6 +54,7 @@ export const COMMANDS = {
 
 export const EVENTS = {
   identityEmailVerificationRequested: 'identity.email-verification.requested.v1',
+  identityWelcomeEmailRequested: 'identity.welcome-email.requested.v1',
   identityPasswordResetRequested: 'identity.password-reset.requested.v1',
   inventoryReserved: 'inventory.reserved.v1',
   inventoryCommitted: 'inventory.committed.v1',
