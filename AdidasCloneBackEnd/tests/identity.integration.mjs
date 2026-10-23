@@ -84,7 +84,7 @@ async t=>{
     const email='identity-'+randomUUID()+'@example.com';
     const originalPassword='Secure$OriginalPassword123';
     const register=await request('/api/v1/auth/register',{email,password:originalPassword});
-    assert.equal(register.status,201,await register.text());
+    assert.equal(register.status,201,'Identity register should return 201; '+identityLogs.value);
     const created=await payload(register);
     assert.equal(created.account.email,email);
     assert.deepEqual(created.account.roles,['CUSTOMER'],'public registration cannot grant ADMIN');
@@ -184,9 +184,11 @@ async t=>{
 
     const audits=await identityPool.query(
       'SELECT event_type FROM identity_audit WHERE account_id=$1',[created.account.id]);
-    // The event table is part of the security boundary; detailed assertions are extended as
-    // security-event instrumentation is finalized with this phase.
-    assert.ok(audits.rowCount>=0);
+    const auditTypes=new Set(audits.rows.map(row=>row.event_type));
+    for(const expected of ['ACCOUNT_REGISTERED','EMAIL_VERIFIED','REFRESH_REPLAY',
+      'PASSWORD_RESET_COMPLETED','LOGIN_FAILED','LOGIN_SUCCEEDED']) {
+      assert.ok(auditTypes.has(expected),'Missing security audit event '+expected);
+    }
     t.diagnostic('Identity lifecycle checks completed against isolated PostgreSQL and RabbitMQ');
   } finally {
     if(identity)await stopChild(identity);
