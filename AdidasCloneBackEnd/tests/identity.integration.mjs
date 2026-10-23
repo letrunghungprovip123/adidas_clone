@@ -69,6 +69,7 @@ async t=>{
   try {
     await waitReady('http://127.0.0.1:4102/health/ready',customer,customerLogs,'Customer');
     identity=startApp('dist/apps/identity-service/src/main.js',{
+      NODE_ENV:'test',
       V2_IDENTITY_ENABLED:'true',V2_IDENTITY_RMQ_ENABLED:'true',
       V2_IDENTITY_EXPOSE_TEST_TOKENS:'true',PORT:'4111'
     },identityLogs);
@@ -91,6 +92,12 @@ async t=>{
     assert.equal(created.account.email_verified,false);
     assert.equal(created.account.customer_provisioned,true);
     assert.ok(created.access_token&&created.refresh_token&&created.verification_token);
+    const storedCredential=await identityPool.query(
+      'SELECT password_hash FROM identity_accounts WHERE id=$1',[created.account.id]);
+    assert.equal(storedCredential.rowCount,1);
+    assert.match(storedCredential.rows[0].password_hash,/^scrypt\$32768\$8\$1\$/);
+    assert.notEqual(storedCredential.rows[0].password_hash,originalPassword,
+      'database must store only a salted password verifier');
 
     const profile=await customerPool.query(
       'SELECT customer_id FROM customer_profiles WHERE customer_id=$1',[created.account.id]);
@@ -137,6 +144,12 @@ async t=>{
     const reset=await payload(resetRequest);
     assert.match(reset.message,/If the account exists/);
     assert.ok(reset.reset_token,'raw reset token is exposed only in the isolated test configuration');
+    const unknownReset=await request('/api/v1/auth/password-reset/request',{
+      email:'absent-'+randomUUID()+'@example.com'
+    });
+    assert.equal(unknownReset.status,200);
+    assert.equal((await payload(unknownReset)).message,reset.message,
+      'password reset response must not disclose account existence');
     const nextPassword='Secure$NewPassword456';
     const resetConfirm=await request('/api/v1/auth/password-reset/confirm',{
       token:reset.reset_token,new_password:nextPassword
