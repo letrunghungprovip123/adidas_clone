@@ -45,11 +45,9 @@ const accounts = users.map(row => {
     throw new Error('Duplicate or invalid seed identity');
   }
   ids.add(id); emails.add(email);
-  // Source password_hash values are demo placeholders such as "hashed_password_3".
-  // Never treat those values, V1 OTPs, or social tokens as usable credentials.
+  // Source password_hash values are demo placeholders. Never import them as credentials.
   return {
-    id,
-    email,
+    id, email,
     roles: row[8] === 't' ? ['ADMIN'] : ['CUSTOMER'],
     verifiedAt: row[7] === 't' ? row[9] : null,
     createdAt: row[9]
@@ -58,6 +56,51 @@ const accounts = users.map(row => {
 
 if (process.argv.includes('--check')) {
   console.log('PASS Identity seed shape: 19 demo accounts; passwords and OTPs excluded; no PII emitted');
+  process.exit(0);
+}
+
+if (process.argv.includes('--sql')) {
+  // Emit an idempotent SQL script for psql inside the private V2 PostgreSQL container.
+  // Existing accounts with the same ID/email are preserved; ID/email conflicts fail closed.
+  const lit = value => "'" + String(value).replaceAll("'", "''") + "'";
+  const values = accounts.map(account =>
+    '(' + account.id + ', ' + lit(account.email) + ', ARRAY[' +
+    account.roles.map(lit).join(',') + ']::TEXT[], ' +
+    (account.verifiedAt === null ? 'NULL::timestamptz' : lit(account.verifiedAt) + '::timestamptz') +
+    ', ' + lit(account.createdAt) + '::timestamptz)'
+  ).join(',\n');
+  const sql = [
+    'BEGIN;',
+    'DO $identity_seed$',
+    'DECLARE seed_row RECORD;',
+    'BEGIN',
+    '  FOR seed_row IN',
+    '    SELECT * FROM (VALUES',
+    values,
+    '    ) AS legacy_seed(id,email,roles,email_verified_at,created_at)',
+    '  LOOP',
+    '    IF EXISTS (SELECT 1 FROM identity_accounts WHERE id=seed_row.id) THEN',
+    '      IF NOT EXISTS (SELECT 1 FROM identity_accounts WHERE id=seed_row.id AND email=seed_row.email) THEN',
+    "        RAISE EXCEPTION 'Identity seed ID/email conflict';",
+    '      END IF;',
+    '    ELSE',
+    '      INSERT INTO identity_accounts(id,email,password_hash,roles,status,email_verified_at,',
+    '        password_reset_required,token_version,provisioning_state,created_at,updated_at)',
+    "      VALUES(seed_row.id,seed_row.email,NULL,seed_row.roles,'ACTIVE',seed_row.email_verified_at,",
+    "        true,1,'PENDING',seed_row.created_at,clock_timestamp()) ON CONFLICT(id) DO NOTHING;",
+    '      IF NOT EXISTS (SELECT 1 FROM identity_accounts WHERE id=seed_row.id AND email=seed_row.email',
+    '        AND password_hash IS NULL AND password_reset_required IS TRUE) THEN',
+    "        RAISE EXCEPTION 'Identity seed safe-password reconciliation failed';",
+    '      END IF;',
+    '    END IF;',
+    '  END LOOP;',
+    "  PERFORM setval(pg_get_serial_sequence('identity_accounts','id')::regclass,",
+    '    GREATEST((SELECT COALESCE(MAX(id),1) FROM identity_accounts),1), true);',
+    'END',
+    '$identity_seed$;',
+    'COMMIT;'
+  ].join('\n');
+  process.stdout.write(sql + '\n');
   process.exit(0);
 }
 
@@ -78,27 +121,42 @@ try {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const known = await client.query(
+      'SELECT id,email FROM identity_accounts WHERE id=ANY($1::integer[]) FOR UPDATE',
+      [accounts.map(account => account.id)]
+    );
+    const knownById = new Map(known.rows.map(row => [Number(row.id), row.email]));
+    const newlyImported = new Set();
     for (const account of accounts) {
-      await client.query(
+      const existingEmail = knownById.get(account.id);
+      if (existingEmail !== undefined) {
+        if (existingEmail !== account.email) throw new Error('Legacy identity ID/email conflict');
+        continue;
+      }
+      const inserted = await client.query(
         "INSERT INTO identity_accounts(id,email,password_hash,roles,status,email_verified_at," +
         "password_reset_required,token_version,provisioning_state,created_at,updated_at) " +
         "VALUES($1,$2,NULL,$3,'ACTIVE',$4,true,1,'PENDING',$5,clock_timestamp()) " +
-        "ON CONFLICT(id) DO NOTHING",
+        "ON CONFLICT(id) DO NOTHING RETURNING id",
         [account.id, account.email, account.roles, account.verifiedAt, account.createdAt]
       );
+      if (inserted.rowCount) newlyImported.add(account.id);
+      const saved = await client.query('SELECT email FROM identity_accounts WHERE id=$1', [account.id]);
+      if (!saved.rowCount || saved.rows[0].email !== account.email) {
+        throw new Error('Legacy identity seed ID/email conflict');
+      }
     }
     await client.query(
       "SELECT setval(pg_get_serial_sequence('identity_accounts','id')::regclass, " +
       "GREATEST((SELECT COALESCE(MAX(id),1) FROM identity_accounts),1), true)"
     );
-    for (const account of accounts) {
+    for (const id of newlyImported) {
       const saved = await client.query(
-        'SELECT email,password_hash,password_reset_required FROM identity_accounts WHERE id=$1',
-        [account.id]
+        'SELECT password_hash,password_reset_required FROM identity_accounts WHERE id=$1', [id]
       );
-      if (!saved.rowCount || saved.rows[0].email !== account.email ||
-          saved.rows[0].password_hash !== null || saved.rows[0].password_reset_required !== true) {
-        throw new Error('Legacy identity seed reconciliation failed');
+      if (!saved.rowCount || saved.rows[0].password_hash !== null ||
+          saved.rows[0].password_reset_required !== true) {
+        throw new Error('Legacy identity safe-password reconciliation failed');
       }
     }
     await client.query('COMMIT');
@@ -107,7 +165,7 @@ try {
     throw error;
   } finally { client.release(); }
 
-  console.log('PASS Identity legacy seed: 19 stable IDs/emails; passwords excluded; reset required; sequence aligned');
+  console.log('PASS Identity legacy seed: stable IDs/emails, new accounts reset-required; existing credentials preserved');
 } catch (error) {
   console.error('Identity seed import failed: ' + (error?.code || 'validation failure'));
   process.exitCode = 1;
