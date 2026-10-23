@@ -1,0 +1,49 @@
+asyncapi: '2.6.0'
+info:
+  title: Adidas Clone V2 Domain Events (foundation contract)
+  version: '0.1.0'
+  description: >
+    Planned RabbitMQ events. Phase 1 does not yet declare queues, publish, or consume.
+defaultContentType: application/json
+servers:
+  development:
+    url: rabbitmq:5672
+    protocol: amqp
+channels:
+  payment.succeeded.v1:
+    description: Payment emits after verified Stripe webhook and persisted outbox
+    publish:
+      message:
+        $ref: '#/components/messages/PaymentSucceeded'
+  order.confirmed.v1:
+    description: Order emits after all inventory/promotion/loyalty commits
+    publish:
+      message:
+        $ref: '#/components/messages/OrderConfirmed'
+components:
+  messages:
+    PaymentSucceeded:
+      name: payment.succeeded.v1
+      payload:
+        $ref: '#/components/schemas/Envelope'
+    OrderConfirmed:
+      name: order.confirmed.v1
+      payload:
+        $ref: '#/components/schemas/Envelope'
+  schemas:
+    Envelope:
+      type: object
+      required: [message_id, correlation_id, occurred_at, contract_version, actor, payload]
+      properties:
+        message_id: { type: string, format: uuid }
+        correlation_id: { type: string, format: uuid }
+        causation_id: { type: string, format: uuid }
+        occurred_at: { type: string, format: date-time }
+        contract_version: { type: integer, enum: [1] }
+        actor:
+          type: object
+          required: [kind]
+          properties:
+            kind: { type: string, enum: [customer, admin, system, guest] }
+            subject_id: { type: string }
+        payload: { type: object, additionalProperties: true }

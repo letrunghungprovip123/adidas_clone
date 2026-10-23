@@ -1,0 +1,156 @@
+/** Wire-only contracts. Do not import Prisma models, domain entities, or services. */
+export const COMMANDS = {
+  catalogProductGet: 'catalog.product.get.v1',
+  catalogProductList: 'catalog.product.list.v1',
+  catalogProductSearch: 'catalog.product.search.v1',
+  catalogCategoriesGet: 'catalog.categories.get.v1',
+  catalogReviewsGet: 'catalog.reviews.get.v1',
+  catalogProductCreate: 'catalog.product.create.v1',
+  catalogProductUpdate: 'catalog.product.update.v1',
+  catalogProductTransition: 'catalog.product.transition.v1',
+  catalogPriceChange: 'catalog.price.change.v1',
+  catalogVariantCreate: 'catalog.variant.create.v1',
+  catalogVariantUpdate: 'catalog.variant.update.v1',
+  catalogVariantStatus: 'catalog.variant.status.v1',
+  catalogCategoryCreate: 'catalog.category.create.v1',
+  catalogCategoryStatus: 'catalog.category.status.v1',
+  catalogMediaSign: 'catalog.media.sign.v1',
+  catalogMediaConfirm: 'catalog.media.confirm.v1',
+  catalogAiSuggest: 'catalog.ai.suggest.v1',
+  catalogCheckoutItemsGet: 'catalog.checkout-items.get.v1',
+  customerProfileGet: 'customer.profile.get.v1',
+  customerProfileEnsure: 'customer.profile.ensure.v1',
+  customerProfileUpdate: 'customer.profile.update.v1',
+  customerAddressList: 'customer.address.list.v1',
+  customerAddressCreate: 'customer.address.create.v1',
+  customerAddressUpdate: 'customer.address.update.v1',
+  customerAddressDefault: 'customer.address.default.v1',
+  customerAddressDelete: 'customer.address.delete.v1',
+  customerWishlistGet: 'customer.wishlist.get.v1',
+  customerWishlistAdd: 'customer.wishlist.add.v1',
+  customerWishlistRemove: 'customer.wishlist.remove.v1',
+  customerLoyaltyBalanceGet: 'customer.loyalty.balance.get.v1',
+  customerLoyaltyLedgerGet: 'customer.loyalty.ledger.get.v1',
+  customerLoyaltyHoldStatusGet: 'customer.loyalty-hold.status.get.v1',
+  customerLoyaltyAdjust: 'customer.loyalty.adjust.v1',
+  customerShippingAddressGet: 'customer.shipping-address.get.v1',
+  promotionHoldCreate: 'promotion.hold.create.v1',
+  promotionHoldRelease: 'promotion.hold.release.v1',
+  promotionHoldCommit: 'promotion.hold.commit.v1',
+  customerLoyaltyHoldCreate: 'customer.loyalty-hold.create.v1',
+  customerLoyaltyHoldRelease: 'customer.loyalty-hold.release.v1',
+  customerLoyaltyHoldCommit: 'customer.loyalty-hold.commit.v1',
+  inventoryReservationCreate: 'inventory.reservation.create.v1',
+  inventoryReservationRelease: 'inventory.reservation.release.v1',
+  inventoryReservationCommit: 'inventory.reservation.commit.v1',
+  inventoryReservationStatusGet: 'inventory.reservation.status.get.v1',
+  inventoryAvailabilityGet: 'inventory.availability.get.v1',
+  inventoryVariantEnsure: 'inventory.variant.ensure.v1',
+  inventoryVariantSetStatus: 'inventory.variant.set-status.v1',
+  orderPaymentQuoteGet: 'order.payment-quote.get.v1',
+  paymentIntentCreate: 'payment.intent.create.v1',
+  paymentIntentCancelOrStatus: 'payment.intent.cancel-or-status.v1'
+} as const;
+
+export const EVENTS = {
+  identityEmailVerificationRequested: 'identity.email-verification.requested.v1',
+  identityWelcomeEmailRequested: 'identity.welcome-email.requested.v1',
+  identityPasswordResetRequested: 'identity.password-reset.requested.v1',
+  inventoryReserved: 'inventory.reserved.v1',
+  inventoryCommitted: 'inventory.committed.v1',
+  inventoryReleased: 'inventory.released.v1',
+  inventoryExpired: 'inventory.expired.v1',
+  inventoryAdjusted: 'inventory.adjusted.v1',
+  inventoryStockChanged: 'inventory.stock-changed.v1',
+  catalogVariantCreated: 'catalog.variant.created.v1',
+  catalogVariantStatusChanged: 'catalog.variant.status-changed.v1',
+  paymentSucceeded: 'payment.succeeded.v1',
+  paymentAttemptFailed: 'payment.attempt-failed.v1',
+  paymentCanceled: 'payment.canceled.v1',
+  orderConfirmed: 'order.confirmed.v1',
+  orderCancelled: 'order.cancelled.v1',
+  orderExpired: 'order.expired.v1',
+  catalogProductCreated: 'catalog.product.created.v1',
+  catalogProductUpdated: 'catalog.product.updated.v1',
+  catalogProductDeleted: 'catalog.product.deleted.v1'
+} as const;
+
+export const COMMAND_QUEUES = {
+  identity: 'identity.commands.q',
+  customer: 'customer.commands.q',
+  catalog: 'catalog.commands.q',
+  inventory: 'inventory.commands.q',
+  order: 'order.commands.q',
+  payment: 'payment.commands.q',
+  promotion: 'promotion.commands.q',
+  notification: 'notification.commands.q'
+} as const;
+export const EVENTS_EXCHANGE = 'commerce.events';
+export const CONSUMER_QUEUES = {
+  orderPayment: 'order.payment-events.q',
+  notificationOrder: 'notification.order-events.q'
+} as const;
+
+/** Technical actor metadata only; authorization stays within each domain. */
+export interface MessageActor {
+  kind: 'customer' | 'admin' | 'system' | 'guest';
+  subject_id?: string;
+}
+
+export interface MessageEnvelope<TPayload> {
+  message_id: string;
+  correlation_id: string;
+  causation_id?: string;
+  occurred_at: string;
+  contract_version: 1;
+  actor: MessageActor;
+  payload: TPayload;
+}
+/** Sensitive challenge payloads are internal events; Notification must never log their raw token. */
+export interface IdentityEmailChallengeRequestedPayload {
+  account_id: number;
+  email: string;
+  token: string;
+  expires_at: string;
+}
+export interface IdentityWelcomeEmailRequestedPayload {
+  account_id: number;
+  email: string;
+}
+export interface OrderConfirmedEventPayload {
+  order_id: number | string;
+  contact_email: string;
+  currency: string;
+  total_minor: number | string;
+  items?: Array<{
+    product_name: string;
+    quantity: number;
+    line_total_minor: number | string;
+  }>;
+}
+export type WireErrorCode =
+  | 'VALIDATION_FAILED'
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'CONFLICT'
+  | 'DEPENDENCY_UNAVAILABLE'
+  | 'IDEMPOTENCY_CONFLICT'
+  | 'INTERNAL_ERROR';
+
+export interface WireError {
+  code: WireErrorCode;
+  message: string;
+  correlation_id: string;
+  details?: Record<string, unknown>;
+}
+
+/** Only service-to-service callers may issue these commands; frontends have no direct stock-write route. */
+export interface InventoryReservePayload {
+  checkout_ref: string;
+  idempotency_key: string;
+  items: Array<{variant_id:number;quantity:number}>;
+  ttl_seconds?: number;
+}
+export interface InventoryReservationActionPayload { reservation_id:string }
+export interface InventoryAvailabilityPayload { variant_id:number }
