@@ -148,7 +148,7 @@ async function publish(channel, eventType, payload) {
 async function waitFor(predicate, message, timeoutMs = 20000) {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
-    const value = predicate();
+    const value = await predicate();
     if (value) return value;
     await sleep(100);
   }
@@ -256,8 +256,7 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
       assert.equal(smtp.accepted.filter(m => m.recipient === retryEmail).length, 1,
         'the retry should produce one accepted message after the transient failure');
 
-      const expiredId = randomUUID();
-      await publish(channel, 'identity.email-verification.requested.v1', {
+      const expiredId = await publish(channel, 'identity.email-verification.requested.v1', {
         account_id: 710005,
         email: 'expired-' + suffix + '@example.test',
         token: 'expired_' + suffix + '_0123456789abcdef',
