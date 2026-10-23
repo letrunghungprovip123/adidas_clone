@@ -9,6 +9,7 @@ on:
       - 'AdidasCloneBackEnd/scripts/phase2/**'
       - 'AdidasCloneBackEnd/scripts/phase3/**'
       - 'AdidasCloneBackEnd/scripts/phase4/**'
+      - 'AdidasCloneBackEnd/scripts/phase5/**'
       - 'AdidasCloneBackEnd/infra/**'
       - 'AdidasCloneBackEnd/package.json'
       - 'AdidasCloneBackEnd/package-lock.json'
@@ -77,6 +78,15 @@ jobs:
       V2_CUSTOMER_RMQ_USER: ci_inventory
       V2_CUSTOMER_RMQ_PASSWORD: ci-inventory-rabbit-password
       V2_CUSTOMER_INTERNAL_TOKEN: 'ci-local-trusted-customer-internal-token-123456789'
+      V2_IDENTITY_DB_HOST: 127.0.0.1
+      V2_IDENTITY_DB_PORT: '5432'
+      V2_IDENTITY_DB_USER: v2_local
+      V2_IDENTITY_DB_PASSWORD: ci-inventory-only-password
+      V2_IDENTITY_DB_NAME: identity_db
+      V2_IDENTITY_RMQ_HOST: 127.0.0.1
+      V2_IDENTITY_RMQ_USER: ci_inventory
+      V2_IDENTITY_RMQ_PASSWORD: ci-inventory-rabbit-password
+      V2_IDENTITY_EXPOSE_TEST_TOKENS: 'true'
     defaults:
       run:
         working-directory: AdidasCloneBackEnd
@@ -121,6 +131,15 @@ jobs:
         run: npm run test:customer
       - name: Customer real RabbitMQ auth and outbox integration
         run: npm run test:customer:rmq
+      - name: Create isolated V2 Identity database
+        run: node -e "const{Pool}=require('pg');const p=new Pool({host:'127.0.0.1',user:'v2_local',password:process.env.V2_IDENTITY_DB_PASSWORD,database:'postgres'});p.query('CREATE DATABASE identity_db').then(()=>p.end()).catch(e=>{console.error(e);process.exit(1)})"
+      - name: Create ephemeral Identity RS256 test key pair
+        run: |
+          node -e "const c=require('node:crypto');const k=c.generateKeyPairSync('rsa',{modulusLength:2048,privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}});console.log('V2_IDENTITY_JWT_PRIVATE_KEY_B64='+Buffer.from(k.privateKey).toString('base64'));console.log('V2_IDENTITY_JWT_PUBLIC_KEY_B64='+Buffer.from(k.publicKey).toString('base64'));" >> "$GITHUB_ENV"
+      - name: Migrate and reconcile safe legacy Identity seed
+        run: npm run migrate:identity && npm run seed:identity:check && npm run seed:identity
+      - name: Identity API, lifecycle, token replay and customer provisioning integration
+        run: npm run test:identity
       - name: Check original seed variant parser without writing to any database
         run: npm run seed:inventory:check
       - name: Production dependency high severity guard
@@ -133,4 +152,7 @@ jobs:
           V2_RABBITMQ_USER: ci
           V2_RABBITMQ_PASSWORD: ci-placeholder-not-a-real-secret
           V2_ALLOWED_ORIGINS: http://localhost:3001
+          V2_CUSTOMER_INTERNAL_TOKEN: ci-local-trusted-customer-internal-token-123456789
+          V2_IDENTITY_JWT_PRIVATE_KEY_B64: ci-placeholder-private-key
+          V2_IDENTITY_JWT_PUBLIC_KEY_B64: ci-placeholder-public-key
         run: docker compose -f infra/docker/docker-compose.v2.yml config --quiet
