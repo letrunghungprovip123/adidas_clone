@@ -54,7 +54,8 @@ const dummyDigest = scryptSync('never-a-real-account-password', dummySalt, 32, p
 const DUMMY_PASSWORD_HASH = 'scrypt$32768$8$1$' +
   dummySalt.toString('base64url') + '$' + dummyDigest.toString('base64url');
 
-function scryptAsync(password: string, salt: Buffer, length: number, options: object): Promise<Buffer> {
+function scryptAsync(password: string, salt: Buffer, length: number,
+  options: {N: number; r: number; p: number; maxmem: number}): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     scrypt(password, salt, length, options, (error, result) => {
       if (error) reject(error); else resolve(result as Buffer);
@@ -357,6 +358,14 @@ export class IdentityService {
     private readonly customer: IdentityRmqGateway
   ) {}
 
+  private async audit(eventType: string, accountId: number | null, ip: string,
+    metadata: Record<string, string | number | boolean> = {}): Promise<void> {
+    await this.db.query(
+      'INSERT INTO identity_audit(event_type,account_id,actor_ip_hash,metadata) VALUES($1,$2,$3,$4)',
+      [eventType, accountId, ip ? sha256(ip) : null, JSON.stringify(metadata)]
+    );
+  }
+
   private requestFingerprint(scope: string, email: string, ip: string): string {
     return sha256(scope + '\u0000' + email + '\u0000' + ip);
   }
@@ -434,11 +443,850 @@ export class IdentityService {
   }
   private async verifyPassword(stored: string | null, supplied: string): Promise<boolean> {
     let hashValue = stored || DUMMY_PASSWORD_HASH;
-    let parts = hashValue.split('$');
-    if (parts.length !== 6 || parts[0] !== 'scrypt' || Number(parts[1]) !== 32768 ||
-        Number(parts[2]) !== 8 || Number(parts[3]) !== 1) {
+    let parts = hashValue.split('    let candidate: Buffer;
+    try {
+      candidate = await scryptAsync(supplied, Buffer.from(parts[4], 'base64url'), 32, passwordKdf);
+    } catch {
+      candidate = Buffer.alloc(32);
+    }
+    const expected = Buffer.from(parts[5], 'base64url');
+    const match = candidate.length === expected.length && timingSafeEqual(candidate, expected);
+    return Boolean(stored) && validFormat && match;
+  }
+
+  private async createChallenge(
+    client: PoolClient,
+    account: Account,
+    purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET',
+    requestFingerprint: string
+  ): Promise<string> {
+    const rawToken = randomBytes(32).toString('base64url');
+    const tokenHash = sha256(rawToken);
+    const expiry = new Date(Date.now() + (purpose === 'EMAIL_VERIFY' ? 24 : 1) * 60 * 60 * 1000);
+    const eventType = purpose === 'EMAIL_VERIFY'
+      ? EVENTS.identityEmailVerificationRequested
+      : EVENTS.identityPasswordResetRequested;
+    const messageId = randomUUID();
+    const envelope = {
+      contract_version: 1,
+      message_id: messageId,
+      correlation_id: messageId,
+      occurred_at: new Date().toISOString(),
+      actor: { kind: 'system' },
+      payload: {
+        account_id: account.id, email: account.email,
+        token: rawToken, expires_at: expiry.toISOString()
+      }
+    };
+    await client.query(
+      'INSERT INTO identity_challenges(account_id,purpose,token_hash,expires_at,requested_ip_hash) ' +
+      'VALUES($1,$2,$3,$4,$5)',
+      [account.id, purpose, tokenHash, expiry, requestFingerprint]
+    );
+    await client.query(
+      'INSERT INTO identity_outbox(topic,envelope) VALUES($1,$2)',
+      [eventType, JSON.stringify(envelope)]
+    );
+    return rawToken;
+  }
+
+  private async makeChallenge(emailInput: string, purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET',
+    ip: string): Promise<string | null> {
+    const email = emailAddress(emailInput);
+    const requestKey = this.requestFingerprint(purpose, email, ip);
+    return this.db.transaction(async client => {
+      const found = await client.query<Account>(
+        'SELECT * FROM identity_accounts WHERE email=$1 FOR UPDATE', [email]
+      );
+      if (!found.rowCount || found.rows[0].status !== 'ACTIVE') return null;
+      const account = found.rows[0];
+      if (purpose === 'EMAIL_VERIFY' && account.email_verified_at) return null;
+      const recent = await client.query<{n: number}>(
+        "SELECT count(*)::integer AS n FROM identity_challenges WHERE account_id=$1 AND purpose=$2 " +
+        "AND created_at >= clock_timestamp()-interval '15 minutes'",
+        [account.id, purpose]
+      );
+      if (recent.rows[0].n >= 3) return null;
+      return this.createChallenge(client, account, purpose, requestKey);
+    });
+  }
+
+  private async tryProvisionCustomer(accountId: number): Promise<boolean> {
+    try {
+      await this.customer.ensureCustomerProfile(accountId);
+      await this.db.query(
+        "UPDATE identity_accounts SET provisioning_state='READY',updated_at=clock_timestamp() WHERE id=$1",
+        [accountId]
+      );
+      return true;
+    } catch {
+      await this.db.query(
+        "UPDATE identity_accounts SET provisioning_state='PENDING',updated_at=clock_timestamp() WHERE id=$1",
+        [accountId]
+      );
+      return false;
+    }
+  }
+  private async reloadAccount(id: number): Promise<Account> {
+    const row = await this.db.query<Account>('SELECT * FROM identity_accounts WHERE id=$1', [id]);
+    if (!row.rowCount) throw new UnauthorizedException('Account is unavailable');
+    return row.rows[0];
+  }
+  private accessToken(account: Account): string {
+    const now = Math.floor(Date.now() / 1000);
+    const claims: AccountClaims = {
+      iss: ISSUER, aud: AUDIENCE, sub: String(account.id),
+      iat: now, exp: now + ACCESS_SECONDS, jti: randomUUID(),
+      roles: account.roles, ver: Number(account.token_version),
+      email_verified: Boolean(account.email_verified_at),
+      customer_provisioned: account.provisioning_state === 'READY'
+    };
+    return this.keys.signAccess(claims);
+  }
+  private async newSession(account: Account, userAgent: string, ip: string, familyId = randomUUID(),
+    parentId: string | null = null, sessionId = randomUUID()) {
+    const token = randomBytes(48).toString('base64url');
+    const expiresAt = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
+    await this.db.query(
+      'INSERT INTO identity_refresh_sessions(id,family_id,account_id,token_hash,expires_at,parent_id,client_fingerprint_hash) ' +
+      'VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [sessionId, familyId, account.id, sha256(token), expiresAt, parentId,
+        sha256(safeRequestValue(userAgent) + '\u0000' + safeRequestValue(ip))]
+    );
+    return {
+      token_type: 'Bearer',
+      access_token: this.accessToken(account),
+      expires_in: ACCESS_SECONDS,
+      refresh_token: token,
+      refresh_expires_at: expiresAt.toISOString(),
+      account: accountView(account)
+    };
+  }
+
+  async register(dto: RegisterIdentityDto, ip: string, userAgent: string) {
+    const email = emailAddress(dto.email);
+    await this.consumeRegisterLimit(this.requestFingerprint('register', email, ip));
+    const passwordHash = await this.hashPassword(dto.password);
+    let account: Account;
+    let verificationToken: string;
+    try {
+      const created = await this.db.transaction(async client => {
+        const result = await client.query<Account>(
+          "INSERT INTO identity_accounts(email,password_hash,roles,status,password_reset_required,provisioning_state) " +
+          "VALUES($1,$2,ARRAY['CUSTOMER'],'ACTIVE',false,'PENDING') RETURNING *",
+          [email, passwordHash]
+        );
+        const newAccount = result.rows[0];
+        const token = await this.createChallenge(client, newAccount, 'EMAIL_VERIFY',
+          this.requestFingerprint('email-verify', email, ip));
+        return { account: newAccount, token };
+      });
+      account = created.account;
+      verificationToken = created.token;
+    } catch (error) {
+      if ((error as {code?: string})?.code === '23505') {
+        throw new ConflictException('Email already registered');
+      }
+      throw error;
+    }
+    await this.audit('ACCOUNT_REGISTERED', account.id, ip);
+    await this.tryProvisionCustomer(account.id);
+    account = await this.reloadAccount(account.id);
+    const session = await this.newSession(account, userAgent, ip);
+    return {
+      ...session,
+      ...(exposeTestTokens() ? { verification_token: verificationToken } : {})
+    };
+  }
+
+  async login(dto: LoginIdentityDto, ip: string, userAgent: string) {
+    const email = emailAddress(dto.email);
+    const throttleKey = this.requestFingerprint('login', email, ip);
+    await this.assertNotBlocked(throttleKey);
+    const result = await this.db.query<Account>('SELECT * FROM identity_accounts WHERE email=$1', [email]);
+    const account = result.rows[0];
+    const matches = await this.verifyPassword(account?.password_hash || null, dto.password);
+    if (!account || account.status !== 'ACTIVE' || account.password_reset_required || !matches) {
+      await this.countFailure(throttleKey, 5);
+      await this.audit('LOGIN_FAILED', account?.id ?? null, ip, {reason: 'INVALID_CREDENTIALS'});
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    await this.db.query('DELETE FROM identity_login_throttles WHERE throttle_key=$1', [throttleKey]);
+    await this.audit('LOGIN_SUCCEEDED', account.id, ip);
+    await this.tryProvisionCustomer(account.id);
+    const current = await this.reloadAccount(account.id);
+    return this.newSession(current, userAgent, ip);
+  }
+
+  async refresh(rawToken: string, userAgent: string, ip: string) {
+    const tokenHash = sha256(rawToken);
+    const newToken = randomBytes(48).toString('base64url');
+    const newSessionId = randomUUID();
+    const result = await this.db.transaction(async client => {
+      const selected = await client.query<Account & {
+        refresh_id: string; family_id: string; expires_at: Date; revoked_at: Date | null
+      }>(
+        'SELECT s.id AS refresh_id,s.family_id,s.expires_at,s.revoked_at,a.id,a.email,a.password_hash,a.roles,' +
+        'a.status,a.email_verified_at,a.password_reset_required,a.token_version,a.provisioning_state,a.created_at ' +
+        'FROM identity_refresh_sessions s JOIN identity_accounts a ON a.id=s.account_id ' +
+        'WHERE s.token_hash=$1 FOR UPDATE OF s,a', [tokenHash]
+      );
+      if (!selected.rowCount) return { kind: 'invalid' as const };
+      const row = selected.rows[0];
+      if (row.revoked_at) {
+        await client.query(
+          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE family_id=$1',
+          [row.family_id]
+        );
+        return { kind: 'replay' as const, accountId: row.id };
+      }
+      if (row.expires_at.getTime() <= Date.now() || row.status !== 'ACTIVE') {
+        await client.query(
+          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE family_id=$1',
+          [row.family_id]
+        );
+        return { kind: 'expired' as const, accountId: row.id };
+      }
+      const expiry = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
+      await client.query(
+        'UPDATE identity_refresh_sessions SET revoked_at=clock_timestamp(),replaced_by=$2 WHERE id=$1',
+        [row.refresh_id, newSessionId]
+      );
+      await client.query(
+        'INSERT INTO identity_refresh_sessions(id,family_id,account_id,token_hash,expires_at,parent_id,client_fingerprint_hash) ' +
+        'VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [newSessionId, row.family_id, row.id, sha256(newToken), expiry, row.refresh_id,
+          sha256(safeRequestValue(userAgent) + '\u0000' + safeRequestValue(ip))]
+      );
+      return { kind: 'ok' as const, account: row, token: newToken, expiresAt: expiry };
+    });
+    if (result.kind !== 'ok') {
+      await this.audit('REFRESH_' + result.kind.toUpperCase(),
+        'accountId' in result ? result.accountId : null, ip);
+      throw new UnauthorizedException(result.kind === 'replay'
+        ? 'Refresh token reuse detected; session family revoked'
+        : 'Invalid refresh token');
+    }
+    await this.tryProvisionCustomer(result.account.id);
+    const account = await this.reloadAccount(result.account.id);
+    return {
+      token_type: 'Bearer',
+      access_token: this.accessToken(account),
+      expires_in: ACCESS_SECONDS,
+      refresh_token: result.token,
+      refresh_expires_at: result.expiresAt.toISOString(),
+      account: accountView(account)
+    };
+  }
+
+  async logout(rawToken: string) {
+    await this.db.transaction(async client => {
+      const result = await client.query<{family_id: string}>(
+        'SELECT family_id FROM identity_refresh_sessions WHERE token_hash=$1 FOR UPDATE', [sha256(rawToken)]
+      );
+      if (result.rowCount) {
+        await client.query(
+          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE family_id=$1',
+          [result.rows[0].family_id]
+        );
+      }
+    });
+    return { ok: true };
+  }
+
+  async requestPasswordReset(email: string, ip: string) {
+    const token = await this.makeChallenge(email, 'PASSWORD_RESET', ip);
+    return {
+      message: 'If the account exists, password reset instructions will be sent.',
+      ...(token && exposeTestTokens() ? { reset_token: token } : {})
+    };
+  }
+  async requestEmailVerification(email: string, ip: string) {
+    const token = await this.makeChallenge(email, 'EMAIL_VERIFY', ip);
+    return {
+      message: 'If the account requires verification, instructions will be sent.',
+      ...(token && exposeTestTokens() ? { verification_token: token } : {})
+    };
+  }
+
+  async confirmChallenge(purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET', rawToken: string,
+    newPassword?: string) {
+    const newHash = purpose === 'PASSWORD_RESET' && newPassword
+      ? await this.hashPassword(newPassword) : null;
+    const result = await this.db.transaction(async client => {
+      const selected = await client.query<{
+        challenge_id: string; account_id: number; consumed_at: Date | null; expires_at: Date; status: string
+      }>(
+        'SELECT ch.id AS challenge_id,ch.account_id,ch.consumed_at,ch.expires_at,a.status ' +
+        'FROM identity_challenges ch JOIN identity_accounts a ON a.id=ch.account_id ' +
+        'WHERE ch.token_hash=$1 AND ch.purpose=$2 FOR UPDATE OF ch,a',
+        [sha256(rawToken), purpose]
+      );
+      if (!selected.rowCount || selected.rows[0].consumed_at ||
+          selected.rows[0].expires_at.getTime() <= Date.now() || selected.rows[0].status !== 'ACTIVE') {
+        return { ok: false as const };
+      }
+      const challenge = selected.rows[0];
+      await client.query(
+        'UPDATE identity_challenges SET consumed_at=clock_timestamp() WHERE id=$1 AND consumed_at IS NULL',
+        [challenge.challenge_id]
+      );
+      if (purpose === 'EMAIL_VERIFY') {
+        await client.query(
+          'UPDATE identity_accounts SET email_verified_at=COALESCE(email_verified_at,clock_timestamp()),' +
+          'updated_at=clock_timestamp() WHERE id=$1', [challenge.account_id]
+        );
+      } else {
+        await client.query(
+          'UPDATE identity_accounts SET password_hash=$2,password_reset_required=false,' +
+          'token_version=token_version+1,updated_at=clock_timestamp() WHERE id=$1',
+          [challenge.account_id, newHash]
+        );
+        await client.query(
+          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) ' +
+          'WHERE account_id=$1', [challenge.account_id]
+        );
+      }
+      return { ok: true as const, accountId: challenge.account_id };
+    });
+    if (!result.ok) throw new BadRequestException('Challenge is invalid, expired or already used');
+    await this.audit(purpose === 'EMAIL_VERIFY' ? 'EMAIL_VERIFIED' : 'PASSWORD_RESET_COMPLETED', result.accountId, '');
+    return { ok: true };
+  }
+
+  async me(authorization: string | undefined) {
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Bearer access token required');
+    }
+    const claims = this.keys.verifyAccess(authorization.slice(7));
+    const result = await this.db.query<Account>('SELECT * FROM identity_accounts WHERE id=$1', [Number(claims.sub)]);
+    if (!result.rowCount || result.rows[0].status !== 'ACTIVE' ||
+        Number(result.rows[0].token_version) !== claims.ver) {
+      throw new UnauthorizedException('Access token has been revoked');
+    }
+    return { account: accountView(result.rows[0]) };
+  }
+
+  async publicJwks() { return this.keys.jwks(); }
+
+  async provisionPending(limit = 10): Promise<void> {
+    const rows = await this.db.query<{id: number}>(
+      "SELECT id FROM identity_accounts WHERE status='ACTIVE' AND provisioning_state='PENDING' " +
+      'ORDER BY id LIMIT $1', [limit]
+    );
+    for (const row of rows.rows) await this.tryProvisionCustomer(row.id);
+  }
+}
+
+@Injectable()
+export class IdentityProvisioningWorker implements OnModuleInit, OnModuleDestroy {
+  private timer?: NodeJS.Timeout;
+  private busy = false;
+  constructor(private readonly service: IdentityService) {}
+  onModuleInit(): void {
+    if (process.env.V2_IDENTITY_ENABLED !== 'true' || process.env.V2_IDENTITY_RMQ_ENABLED !== 'true') return;
+    this.timer = setInterval(() => {
+      if (this.busy) return;
+      this.busy = true;
+      void this.service.provisionPending().catch(() => undefined).finally(() => { this.busy = false; });
+    }, 5000);
+    this.timer.unref();
+  }
+  onModuleDestroy(): void { if (this.timer) clearInterval(this.timer); }
+}
+
+@Controller('api/v1/auth')
+export class IdentityAuthController {
+  constructor(private readonly service: IdentityService) {}
+  @Post('register')
+  register(@Body() body: RegisterIdentityDto, @Req() req: Request) {
+    return this.service.register(body, req.ip || '', req.get('user-agent') || '');
+  }
+  @Post('login') @HttpCode(200)
+  login(@Body() body: LoginIdentityDto, @Req() req: Request) {
+    return this.service.login(body, req.ip || '', req.get('user-agent') || '');
+  }
+  @Post('refresh') @HttpCode(200)
+  refresh(@Body() body: RefreshIdentityDto, @Req() req: Request) {
+    return this.service.refresh(body.refresh_token, req.get('user-agent') || '', req.ip || '');
+  }
+  @Post('logout') @HttpCode(200)
+  logout(@Body() body: RefreshIdentityDto) { return this.service.logout(body.refresh_token); }
+  @Post('password-reset/request') @HttpCode(200)
+  resetRequest(@Body() body: ResetRequestDto, @Req() req: Request) {
+    return this.service.requestPasswordReset(body.email, req.ip || '');
+  }
+  @Post('password-reset/confirm') @HttpCode(200)
+  resetConfirm(@Body() body: ResetConfirmDto) {
+    return this.service.confirmChallenge('PASSWORD_RESET', body.token, body.new_password);
+  }
+  @Post('email-verification/request') @HttpCode(200)
+  verifyRequest(@Body() body: ResetRequestDto, @Req() req: Request) {
+    return this.service.requestEmailVerification(body.email, req.ip || '');
+  }
+  @Post('email-verification/confirm') @HttpCode(200)
+  verifyConfirm(@Body() body: VerifyEmailDto) {
+    return this.service.confirmChallenge('EMAIL_VERIFY', body.token);
+  }
+  @Get('me')
+  me(@Headers('authorization') authorization: string | undefined) {
+    return this.service.me(authorization);
+  }
+}
+
+@Controller()
+export class IdentityPublicKeysController {
+  constructor(private readonly service: IdentityService) {}
+  @Get('.well-known/jwks.json')
+  jwks() { return this.service.publicJwks(); }
+}
+
+@Controller('health')
+export class IdentityHealthController {
+  constructor(private readonly db: IdentityDatabase) {}
+  @Get('live') live() { return { status: 'ok' }; }
+  @Get('ready')
+  async ready() {
+    try {
+      await this.db.ready();
+      return { status: 'ok', info: { postgres: { status: 'up' }, jwt: { status: 'up' } } };
+    } catch {
+      throw new ServiceUnavailableException('Identity PostgreSQL unavailable');
+    }
+  }
+}
+
+@Module({
+  controllers: [IdentityAuthController, IdentityPublicKeysController, IdentityHealthController],
+  providers: [
+    IdentityDatabase, IdentityKeys, IdentityRmqGateway, IdentityOutboxPublisher,
+    IdentityService, IdentityProvisioningWorker
+  ],
+  exports: [IdentityDatabase, IdentityService]
+})
+export class IdentityModule {}
+);
+    const validFormat = parts.length === 6 && parts[0] === 'scrypt' && Number(parts[1]) === 32768 &&
+      Number(parts[2]) === 8 && Number(parts[3]) === 1;
+    if (!validFormat) {
       hashValue = DUMMY_PASSWORD_HASH;
-      parts = hashValue.split('$');
+      parts = hashValue.split('    let candidate: Buffer;
+    try {
+      candidate = await scryptAsync(supplied, Buffer.from(parts[4], 'base64url'), 32, passwordKdf);
+    } catch {
+      candidate = Buffer.alloc(32);
+    }
+    const expected = Buffer.from(parts[5], 'base64url');
+    const match = candidate.length === expected.length && timingSafeEqual(candidate, expected);
+    return Boolean(stored) && match;
+  }
+
+  private async createChallenge(
+    client: PoolClient,
+    account: Account,
+    purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET',
+    requestFingerprint: string
+  ): Promise<string> {
+    const rawToken = randomBytes(32).toString('base64url');
+    const tokenHash = sha256(rawToken);
+    const expiry = new Date(Date.now() + (purpose === 'EMAIL_VERIFY' ? 24 : 1) * 60 * 60 * 1000);
+    const eventType = purpose === 'EMAIL_VERIFY'
+      ? EVENTS.identityEmailVerificationRequested
+      : EVENTS.identityPasswordResetRequested;
+    const messageId = randomUUID();
+    const envelope = {
+      contract_version: 1,
+      message_id: messageId,
+      correlation_id: messageId,
+      occurred_at: new Date().toISOString(),
+      actor: { kind: 'system' },
+      payload: {
+        account_id: account.id, email: account.email,
+        token: rawToken, expires_at: expiry.toISOString()
+      }
+    };
+    await client.query(
+      'INSERT INTO identity_challenges(account_id,purpose,token_hash,expires_at,requested_ip_hash) ' +
+      'VALUES($1,$2,$3,$4,$5)',
+      [account.id, purpose, tokenHash, expiry, requestFingerprint]
+    );
+    await client.query(
+      'INSERT INTO identity_outbox(topic,envelope) VALUES($1,$2)',
+      [eventType, JSON.stringify(envelope)]
+    );
+    return rawToken;
+  }
+
+  private async makeChallenge(emailInput: string, purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET',
+    ip: string): Promise<string | null> {
+    const email = emailAddress(emailInput);
+    const requestKey = this.requestFingerprint(purpose, email, ip);
+    return this.db.transaction(async client => {
+      const found = await client.query<Account>(
+        'SELECT * FROM identity_accounts WHERE email=$1 FOR UPDATE', [email]
+      );
+      if (!found.rowCount || found.rows[0].status !== 'ACTIVE') return null;
+      const account = found.rows[0];
+      if (purpose === 'EMAIL_VERIFY' && account.email_verified_at) return null;
+      const recent = await client.query<{n: number}>(
+        "SELECT count(*)::integer AS n FROM identity_challenges WHERE account_id=$1 AND purpose=$2 " +
+        "AND created_at >= clock_timestamp()-interval '15 minutes'",
+        [account.id, purpose]
+      );
+      if (recent.rows[0].n >= 3) return null;
+      return this.createChallenge(client, account, purpose, requestKey);
+    });
+  }
+
+  private async tryProvisionCustomer(accountId: number): Promise<boolean> {
+    try {
+      await this.customer.ensureCustomerProfile(accountId);
+      await this.db.query(
+        "UPDATE identity_accounts SET provisioning_state='READY',updated_at=clock_timestamp() WHERE id=$1",
+        [accountId]
+      );
+      return true;
+    } catch {
+      await this.db.query(
+        "UPDATE identity_accounts SET provisioning_state='PENDING',updated_at=clock_timestamp() WHERE id=$1",
+        [accountId]
+      );
+      return false;
+    }
+  }
+  private async reloadAccount(id: number): Promise<Account> {
+    const row = await this.db.query<Account>('SELECT * FROM identity_accounts WHERE id=$1', [id]);
+    if (!row.rowCount) throw new UnauthorizedException('Account is unavailable');
+    return row.rows[0];
+  }
+  private accessToken(account: Account): string {
+    const now = Math.floor(Date.now() / 1000);
+    const claims: AccountClaims = {
+      iss: ISSUER, aud: AUDIENCE, sub: String(account.id),
+      iat: now, exp: now + ACCESS_SECONDS, jti: randomUUID(),
+      roles: account.roles, ver: Number(account.token_version),
+      email_verified: Boolean(account.email_verified_at),
+      customer_provisioned: account.provisioning_state === 'READY'
+    };
+    return this.keys.signAccess(claims);
+  }
+  private async newSession(account: Account, userAgent: string, ip: string, familyId = randomUUID(),
+    parentId: string | null = null, sessionId = randomUUID()) {
+    const token = randomBytes(48).toString('base64url');
+    const expiresAt = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
+    await this.db.query(
+      'INSERT INTO identity_refresh_sessions(id,family_id,account_id,token_hash,expires_at,parent_id,client_fingerprint_hash) ' +
+      'VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [sessionId, familyId, account.id, sha256(token), expiresAt, parentId,
+        sha256(safeRequestValue(userAgent) + '\u0000' + safeRequestValue(ip))]
+    );
+    return {
+      token_type: 'Bearer',
+      access_token: this.accessToken(account),
+      expires_in: ACCESS_SECONDS,
+      refresh_token: token,
+      refresh_expires_at: expiresAt.toISOString(),
+      account: accountView(account)
+    };
+  }
+
+  async register(dto: RegisterIdentityDto, ip: string, userAgent: string) {
+    const email = emailAddress(dto.email);
+    await this.consumeRegisterLimit(this.requestFingerprint('register', email, ip));
+    const passwordHash = await this.hashPassword(dto.password);
+    let account: Account;
+    let verificationToken: string;
+    try {
+      const created = await this.db.transaction(async client => {
+        const result = await client.query<Account>(
+          "INSERT INTO identity_accounts(email,password_hash,roles,status,password_reset_required,provisioning_state) " +
+          "VALUES($1,$2,ARRAY['CUSTOMER'],'ACTIVE',false,'PENDING') RETURNING *",
+          [email, passwordHash]
+        );
+        const newAccount = result.rows[0];
+        const token = await this.createChallenge(client, newAccount, 'EMAIL_VERIFY',
+          this.requestFingerprint('email-verify', email, ip));
+        return { account: newAccount, token };
+      });
+      account = created.account;
+      verificationToken = created.token;
+    } catch (error) {
+      if ((error as {code?: string})?.code === '23505') {
+        throw new ConflictException('Email already registered');
+      }
+      throw error;
+    }
+    await this.tryProvisionCustomer(account.id);
+    account = await this.reloadAccount(account.id);
+    const session = await this.newSession(account, userAgent, ip);
+    return {
+      ...session,
+      ...(exposeTestTokens() ? { verification_token: verificationToken } : {})
+    };
+  }
+
+  async login(dto: LoginIdentityDto, ip: string, userAgent: string) {
+    const email = emailAddress(dto.email);
+    const throttleKey = this.requestFingerprint('login', email, ip);
+    await this.assertNotBlocked(throttleKey);
+    const result = await this.db.query<Account>('SELECT * FROM identity_accounts WHERE email=$1', [email]);
+    const account = result.rows[0];
+    const matches = await this.verifyPassword(account?.password_hash || null, dto.password);
+    if (!account || account.status !== 'ACTIVE' || account.password_reset_required || !matches) {
+      await this.countFailure(throttleKey, 5);
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    await this.db.query('DELETE FROM identity_login_throttles WHERE throttle_key=$1', [throttleKey]);
+    await this.tryProvisionCustomer(account.id);
+    const current = await this.reloadAccount(account.id);
+    return this.newSession(current, userAgent, ip);
+  }
+
+  async refresh(rawToken: string, userAgent: string, ip: string) {
+    const tokenHash = sha256(rawToken);
+    const newToken = randomBytes(48).toString('base64url');
+    const newSessionId = randomUUID();
+    const result = await this.db.transaction(async client => {
+      const selected = await client.query<Account & {
+        refresh_id: string; family_id: string; expires_at: Date; revoked_at: Date | null
+      }>(
+        'SELECT s.id AS refresh_id,s.family_id,s.expires_at,s.revoked_at,a.id,a.email,a.password_hash,a.roles,' +
+        'a.status,a.email_verified_at,a.password_reset_required,a.token_version,a.provisioning_state,a.created_at ' +
+        'FROM identity_refresh_sessions s JOIN identity_accounts a ON a.id=s.account_id ' +
+        'WHERE s.token_hash=$1 FOR UPDATE OF s,a', [tokenHash]
+      );
+      if (!selected.rowCount) return { kind: 'invalid' as const };
+      const row = selected.rows[0];
+      if (row.revoked_at) {
+        await client.query(
+          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE family_id=$1',
+          [row.family_id]
+        );
+        return { kind: 'replay' as const };
+      }
+      if (row.expires_at.getTime() <= Date.now() || row.status !== 'ACTIVE') {
+        await client.query(
+          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE family_id=$1',
+          [row.family_id]
+        );
+        return { kind: 'expired' as const };
+      }
+      const expiry = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
+      await client.query(
+        'UPDATE identity_refresh_sessions SET revoked_at=clock_timestamp(),replaced_by=$2 WHERE id=$1',
+        [row.refresh_id, newSessionId]
+      );
+      await client.query(
+        'INSERT INTO identity_refresh_sessions(id,family_id,account_id,token_hash,expires_at,parent_id,client_fingerprint_hash) ' +
+        'VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [newSessionId, row.family_id, row.id, sha256(newToken), expiry, row.refresh_id,
+          sha256(safeRequestValue(userAgent) + '\u0000' + safeRequestValue(ip))]
+      );
+      return { kind: 'ok' as const, account: row, token: newToken, expiresAt: expiry };
+    });
+    if (result.kind !== 'ok') {
+      throw new UnauthorizedException(result.kind === 'replay'
+        ? 'Refresh token reuse detected; session family revoked'
+        : 'Invalid refresh token');
+    }
+    await this.tryProvisionCustomer(result.account.id);
+    const account = await this.reloadAccount(result.account.id);
+    return {
+      token_type: 'Bearer',
+      access_token: this.accessToken(account),
+      expires_in: ACCESS_SECONDS,
+      refresh_token: result.token,
+      refresh_expires_at: result.expiresAt.toISOString(),
+      account: accountView(account)
+    };
+  }
+
+  async logout(rawToken: string) {
+    await this.db.transaction(async client => {
+      const result = await client.query<{family_id: string}>(
+        'SELECT family_id FROM identity_refresh_sessions WHERE token_hash=$1 FOR UPDATE', [sha256(rawToken)]
+      );
+      if (result.rowCount) {
+        await client.query(
+          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE family_id=$1',
+          [result.rows[0].family_id]
+        );
+      }
+    });
+    return { ok: true };
+  }
+
+  async requestPasswordReset(email: string, ip: string) {
+    const token = await this.makeChallenge(email, 'PASSWORD_RESET', ip);
+    return {
+      message: 'If the account exists, password reset instructions will be sent.',
+      ...(token && exposeTestTokens() ? { reset_token: token } : {})
+    };
+  }
+  async requestEmailVerification(email: string, ip: string) {
+    const token = await this.makeChallenge(email, 'EMAIL_VERIFY', ip);
+    return {
+      message: 'If the account requires verification, instructions will be sent.',
+      ...(token && exposeTestTokens() ? { verification_token: token } : {})
+    };
+  }
+
+  async confirmChallenge(purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET', rawToken: string,
+    newPassword?: string) {
+    const newHash = purpose === 'PASSWORD_RESET' && newPassword
+      ? await this.hashPassword(newPassword) : null;
+    const result = await this.db.transaction(async client => {
+      const selected = await client.query<{
+        challenge_id: string; account_id: number; consumed_at: Date | null; expires_at: Date; status: string
+      }>(
+        'SELECT ch.id AS challenge_id,ch.account_id,ch.consumed_at,ch.expires_at,a.status ' +
+        'FROM identity_challenges ch JOIN identity_accounts a ON a.id=ch.account_id ' +
+        'WHERE ch.token_hash=$1 AND ch.purpose=$2 FOR UPDATE OF ch,a',
+        [sha256(rawToken), purpose]
+      );
+      if (!selected.rowCount || selected.rows[0].consumed_at ||
+          selected.rows[0].expires_at.getTime() <= Date.now() || selected.rows[0].status !== 'ACTIVE') {
+        return { ok: false as const };
+      }
+      const challenge = selected.rows[0];
+      await client.query(
+        'UPDATE identity_challenges SET consumed_at=clock_timestamp() WHERE id=$1 AND consumed_at IS NULL',
+        [challenge.challenge_id]
+      );
+      if (purpose === 'EMAIL_VERIFY') {
+        await client.query(
+          'UPDATE identity_accounts SET email_verified_at=COALESCE(email_verified_at,clock_timestamp()),' +
+          'updated_at=clock_timestamp() WHERE id=$1', [challenge.account_id]
+        );
+      } else {
+        await client.query(
+          'UPDATE identity_accounts SET password_hash=$2,password_reset_required=false,' +
+          'token_version=token_version+1,updated_at=clock_timestamp() WHERE id=$1',
+          [challenge.account_id, newHash]
+        );
+        await client.query(
+          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) ' +
+          'WHERE account_id=$1', [challenge.account_id]
+        );
+      }
+      return { ok: true as const };
+    });
+    if (!result.ok) throw new BadRequestException('Challenge is invalid, expired or already used');
+    return { ok: true };
+  }
+
+  async me(authorization: string | undefined) {
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Bearer access token required');
+    }
+    const claims = this.keys.verifyAccess(authorization.slice(7));
+    const result = await this.db.query<Account>('SELECT * FROM identity_accounts WHERE id=$1', [Number(claims.sub)]);
+    if (!result.rowCount || result.rows[0].status !== 'ACTIVE' ||
+        Number(result.rows[0].token_version) !== claims.ver) {
+      throw new UnauthorizedException('Access token has been revoked');
+    }
+    return { account: accountView(result.rows[0]) };
+  }
+
+  async publicJwks() { return this.keys.jwks(); }
+
+  async provisionPending(limit = 10): Promise<void> {
+    const rows = await this.db.query<{id: number}>(
+      "SELECT id FROM identity_accounts WHERE status='ACTIVE' AND provisioning_state='PENDING' " +
+      'ORDER BY id LIMIT $1', [limit]
+    );
+    for (const row of rows.rows) await this.tryProvisionCustomer(row.id);
+  }
+}
+
+@Injectable()
+export class IdentityProvisioningWorker implements OnModuleInit, OnModuleDestroy {
+  private timer?: NodeJS.Timeout;
+  private busy = false;
+  constructor(private readonly service: IdentityService) {}
+  onModuleInit(): void {
+    if (process.env.V2_IDENTITY_ENABLED !== 'true' || process.env.V2_IDENTITY_RMQ_ENABLED !== 'true') return;
+    this.timer = setInterval(() => {
+      if (this.busy) return;
+      this.busy = true;
+      void this.service.provisionPending().catch(() => undefined).finally(() => { this.busy = false; });
+    }, 5000);
+    this.timer.unref();
+  }
+  onModuleDestroy(): void { if (this.timer) clearInterval(this.timer); }
+}
+
+@Controller('api/v1/auth')
+export class IdentityAuthController {
+  constructor(private readonly service: IdentityService) {}
+  @Post('register')
+  register(@Body() body: RegisterIdentityDto, @Req() req: Request) {
+    return this.service.register(body, req.ip || '', req.get('user-agent') || '');
+  }
+  @Post('login') @HttpCode(200)
+  login(@Body() body: LoginIdentityDto, @Req() req: Request) {
+    return this.service.login(body, req.ip || '', req.get('user-agent') || '');
+  }
+  @Post('refresh') @HttpCode(200)
+  refresh(@Body() body: RefreshIdentityDto, @Req() req: Request) {
+    return this.service.refresh(body.refresh_token, req.get('user-agent') || '', req.ip || '');
+  }
+  @Post('logout') @HttpCode(200)
+  logout(@Body() body: RefreshIdentityDto) { return this.service.logout(body.refresh_token); }
+  @Post('password-reset/request') @HttpCode(200)
+  resetRequest(@Body() body: ResetRequestDto, @Req() req: Request) {
+    return this.service.requestPasswordReset(body.email, req.ip || '');
+  }
+  @Post('password-reset/confirm') @HttpCode(200)
+  resetConfirm(@Body() body: ResetConfirmDto) {
+    return this.service.confirmChallenge('PASSWORD_RESET', body.token, body.new_password);
+  }
+  @Post('email-verification/request') @HttpCode(200)
+  verifyRequest(@Body() body: ResetRequestDto, @Req() req: Request) {
+    return this.service.requestEmailVerification(body.email, req.ip || '');
+  }
+  @Post('email-verification/confirm') @HttpCode(200)
+  verifyConfirm(@Body() body: VerifyEmailDto) {
+    return this.service.confirmChallenge('EMAIL_VERIFY', body.token);
+  }
+  @Get('me')
+  me(@Headers('authorization') authorization: string | undefined) {
+    return this.service.me(authorization);
+  }
+}
+
+@Controller()
+export class IdentityPublicKeysController {
+  constructor(private readonly service: IdentityService) {}
+  @Get('.well-known/jwks.json')
+  jwks() { return this.service.publicJwks(); }
+}
+
+@Controller('health')
+export class IdentityHealthController {
+  constructor(private readonly db: IdentityDatabase) {}
+  @Get('live') live() { return { status: 'ok' }; }
+  @Get('ready')
+  async ready() {
+    try {
+      await this.db.ready();
+      return { status: 'ok', info: { postgres: { status: 'up' }, jwt: { status: 'up' } } };
+    } catch {
+      throw new ServiceUnavailableException('Identity PostgreSQL unavailable');
+    }
+  }
+}
+
+@Module({
+  controllers: [IdentityAuthController, IdentityPublicKeysController, IdentityHealthController],
+  providers: [
+    IdentityDatabase, IdentityKeys, IdentityRmqGateway, IdentityOutboxPublisher,
+    IdentityService, IdentityProvisioningWorker
+  ],
+  exports: [IdentityDatabase, IdentityService]
+})
+export class IdentityModule {}
+);
     }
     let candidate: Buffer;
     try {
