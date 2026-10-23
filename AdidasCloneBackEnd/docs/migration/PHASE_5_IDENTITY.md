@@ -32,6 +32,7 @@ The V2 CI workflow applies the migration to isolated PostgreSQL 16, runs the che
 Run from `AdidasCloneBackEnd` on the current V2 branch. These steps do not start Identity until after the migration and seed are ready.
 
 ```zsh
+set -e
 git pull --ff-only origin refactor/v2-phase1-foundation
 
 # Keep the broker token local and ensure it is at least 32 random characters.
@@ -65,7 +66,7 @@ DC=(docker compose --env-file infra/docker/.env.local -f infra/docker/docker-com
 
 # Validate the checked-in fixture, then apply safe seed SQL through the same private container.
 npm run seed:identity:check
-node scripts/phase5/seed-identity.mjs --sql | "${DC[@]}" exec -T postgres psql -q -v ON_ERROR_STOP=1 -U v2_local -d identity_db
+npm run seed:identity:sql | "${DC[@]}" exec -T postgres psql -q -v ON_ERROR_STOP=1 -U v2_local -d identity_db
 
 # Build/start only the changed service and its existing Customer dependency.
 "${DC[@]}" up -d --build --no-deps identity-service customer-service
