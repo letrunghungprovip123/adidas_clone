@@ -60,6 +60,11 @@ DC=(docker compose --env-file infra/docker/.env.local -f infra/docker/docker-com
 "${DC[@]}" config --quiet
 "${DC[@]}" up -d --wait postgres rabbitmq
 
+# Run the migration/seed scripts from the host through the isolated V2 published PostgreSQL port.
+export V2_IDENTITY_DB_HOST=127.0.0.1 V2_IDENTITY_DB_USER=v2_local V2_IDENTITY_DB_NAME=identity_db
+export V2_IDENTITY_DB_PASSWORD="$(sed -n 's/^V2_POSTGRES_PASSWORD=//p' infra/docker/.env.local | tail -n 1)"
+test -n "$V2_IDENTITY_DB_PASSWORD"
+
 # Dedicated database only: apply the additive migration and checked-in demo seed.
 npm run migrate:identity
 npm run seed:identity:check
