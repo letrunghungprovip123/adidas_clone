@@ -60,15 +60,12 @@ DC=(docker compose --env-file infra/docker/.env.local -f infra/docker/docker-com
 "${DC[@]}" config --quiet
 "${DC[@]}" up -d --wait postgres rabbitmq
 
-# Run the migration/seed scripts from the host through the isolated V2 published PostgreSQL port.
-export V2_IDENTITY_DB_HOST=127.0.0.1 V2_IDENTITY_DB_USER=v2_local V2_IDENTITY_DB_NAME=identity_db
-export V2_IDENTITY_DB_PASSWORD="$(sed -n 's/^V2_POSTGRES_PASSWORD=//p' infra/docker/.env.local | tail -n 1)"
-test -n "$V2_IDENTITY_DB_PASSWORD"
+# Keep PostgreSQL private: run the checked-in additive migration inside the V2 DB container.
+"${DC[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U v2_local -d identity_db < apps/identity-service/migrations/001_identity.sql
 
-# Dedicated database only: apply the additive migration and checked-in demo seed.
-npm run migrate:identity
+# Validate the checked-in fixture, then apply safe seed SQL through the same private container.
 npm run seed:identity:check
-npm run seed:identity
+node scripts/phase5/seed-identity.mjs --sql | "${DC[@]}" exec -T postgres psql -q -v ON_ERROR_STOP=1 -U v2_local -d identity_db
 
 # Build/start only the changed service and its existing Customer dependency.
 "${DC[@]}" up -d --build --no-deps identity-service customer-service
