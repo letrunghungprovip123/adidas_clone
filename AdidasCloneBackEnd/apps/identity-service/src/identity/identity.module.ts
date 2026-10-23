@@ -69,7 +69,8 @@ function emailAddress(value: string): string {
   return value.trim().toLowerCase();
 }
 function exposeTestTokens(): boolean {
-  return process.env.NODE_ENV !== 'production' &&
+  // Raw reset/verification values are never returned outside a dedicated test process.
+  return process.env.NODE_ENV === 'test' &&
     process.env.V2_IDENTITY_EXPOSE_TEST_TOKENS === 'true';
 }
 function safeRequestValue(value: string | undefined): string {
@@ -383,7 +384,9 @@ export class IdentityService {
       const row = selected.rows[0];
       if (row.blocked_until && row.blocked_until.getTime() > Date.now()) return false;
       let count = row.failure_count;
-      const reset = Date.now() - row.window_started_at.getTime() >= CHALLENGE_WINDOW_MS;
+      const blockExpired = row.blocked_until !== null && row.blocked_until.getTime() <= Date.now();
+      const reset = blockExpired ||
+        Date.now() - row.window_started_at.getTime() >= CHALLENGE_WINDOW_MS;
       if (reset) count = 0;
       if (count >= 5) {
         await client.query(
