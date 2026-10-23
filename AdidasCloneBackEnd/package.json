@@ -41,7 +41,8 @@
     "seed:customer:check": "node scripts/phase4/seed-customer.mjs --check",
     "seed:customer": "node scripts/phase4/import-customer.mjs",
     "test:customer": "node --test tests/customer.integration.mjs",
-    "test:customer:rmq": "node --test tests/customer.rabbit.integration.mjs"
+    "test:customer:rmq": "node --test tests/customer.rabbit.integration.mjs",
+    "test:notification": "node --test tests/notification.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "11.2.7",
@@ -57,7 +58,8 @@
     "rxjs": "7.8.2",
     "pg": "8.23.1",
     "amqplib": "0.10.9",
-    "amqp-connection-manager": "5.0.0"
+    "amqp-connection-manager": "5.0.0",
+    "nodemailer": "10.2.0"
   },
   "devDependencies": {
     "@eslint/js": "9.39.0",
