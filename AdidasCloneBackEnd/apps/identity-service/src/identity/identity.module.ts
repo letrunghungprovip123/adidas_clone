@@ -679,18 +679,19 @@ export class IdentityService {
     };
   }
 
-  async logout(rawToken: string) {
-    await this.db.transaction(async client => {
-      const result = await client.query<{family_id: string}>(
-        'SELECT family_id FROM identity_refresh_sessions WHERE token_hash=$1 FOR UPDATE', [sha256(rawToken)]
+  async logout(rawToken: string, ip: string) {
+    const accountId = await this.db.transaction(async client => {
+      const result = await client.query<{family_id: string; account_id: number}>(
+        'SELECT family_id,account_id FROM identity_refresh_sessions WHERE token_hash=$1 FOR UPDATE', [sha256(rawToken)]
       );
-      if (result.rowCount) {
-        await client.query(
-          'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE family_id=$1',
-          [result.rows[0].family_id]
-        );
-      }
+      if (!result.rowCount) return null;
+      await client.query(
+        'UPDATE identity_refresh_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE family_id=$1',
+        [result.rows[0].family_id]
+      );
+      return result.rows[0].account_id;
     });
+    if (accountId) await this.audit('LOGOUT', accountId, ip);
     return { ok: true };
   }
 
@@ -811,7 +812,9 @@ export class IdentityAuthController {
     return this.service.refresh(body.refresh_token, req.get('user-agent') || '', req.ip || '');
   }
   @Post('logout') @HttpCode(200)
-  logout(@Body() body: RefreshIdentityDto) { return this.service.logout(body.refresh_token); }
+  logout(@Body() body: RefreshIdentityDto, @Req() req: Request) {
+    return this.service.logout(body.refresh_token, req.ip || '');
+  }
   @Post('password-reset/request') @HttpCode(200)
   resetRequest(@Body() body: ResetRequestDto, @Req() req: Request) {
     return this.service.requestPasswordReset(body.email, req.ip || '');
