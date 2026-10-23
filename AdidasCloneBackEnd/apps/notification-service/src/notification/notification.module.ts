@@ -230,6 +230,10 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
         if (message) void this.handleMessage('order', message);
       }, { noAck: false });
       this.connected = true;
+      if (this.reconnectTimer) {
+        clearInterval(this.reconnectTimer);
+        this.reconnectTimer = undefined;
+      }
       this.logger.log('Notification RabbitMQ consumers connected');
     } catch (error) {
       if (connection) await connection.close().catch(() => undefined);
@@ -294,14 +298,16 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
     const candidate = message.properties.type ||
       (typeof headers['x-notification-event-type'] === 'string'
         ? headers['x-notification-event-type'] : message.fields.routingKey);
-    const allowed = stream === 'identity'
+    const allowed: readonly string[] = stream === 'identity'
       ? [
           EVENTS.identityEmailVerificationRequested,
           EVENTS.identityPasswordResetRequested,
           EVENTS.identityWelcomeEmailRequested
         ]
       : [EVENTS.orderConfirmed];
-    if (!allowed.includes(candidate)) throw new PermanentNotificationError('UNSUPPORTED_EVENT_TYPE');
+    if (typeof candidate !== 'string' || !allowed.includes(candidate)) {
+      throw new PermanentNotificationError('UNSUPPORTED_EVENT_TYPE');
+    }
     return candidate;
   }
 
@@ -430,7 +436,9 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
   private isTransient(error: unknown): boolean {
     if (error instanceof PermanentNotificationError) return false;
     const failure = error && typeof error === 'object'
-      ? error as { code?: unknown; responseCode?: unknown } : {};
+      ? error as { code?: unknown; responseCode?: unknown; permanent?: unknown } : {};
+    if (failure.permanent === true) return false;
+    if (failure.permanent === false) return true;
     const responseCode = Number(failure.responseCode);
     if (Number.isFinite(responseCode) && responseCode >= 500 && responseCode < 600) return false;
     if (Number.isFinite(responseCode) && responseCode >= 400 && responseCode < 500) return true;
