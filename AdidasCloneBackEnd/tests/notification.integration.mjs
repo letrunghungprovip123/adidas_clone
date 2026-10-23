@@ -263,7 +263,7 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
       assert.ok(orderRaw.includes('phase6-' + suffix.slice(0, 16)));
       const htmlStart = orderRaw.toLowerCase().indexOf('content-type: text/html');
       assert.ok(htmlStart >= 0, 'order confirmation must include an HTML MIME part');
-      const htmlPart = orderRaw.slice(htmlStart);
+      const htmlPart = decodeQuotedPrintable(orderRaw.slice(htmlStart));
       assert.ok(htmlPart.includes('&lt;em&gt;sale&lt;/em&gt;'),
         'HTML templates must escape untrusted product markup');
       assert.equal(htmlPart.includes('<em>sale</em>'), false,
