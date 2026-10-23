@@ -224,7 +224,7 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
         currency: 'VND',
         total_minor: 1234567,
         items: [{
-          product_name: 'Sneaker <script>alert("x")</script>',
+          product_name: 'Sneaker <em>sale</em>',
           quantity: 2,
           line_total_minor: 1234567
         }]
@@ -252,14 +252,19 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
       assert.ok(welcomeRaw.includes('Welcome to Adidas Clone'));
       const orderRaw = smtp.accepted.find(m => m.recipient === orderEmail).raw;
       assert.ok(orderRaw.includes('phase6-' + suffix.slice(0, 16)));
-      assert.ok(orderRaw.includes('&lt;script&gt;'), 'HTML template must escape untrusted product names');
-      assert.equal(orderRaw.includes('<script>alert("x")</script>'), false,
-        'raw HTML injection must not be copied into the HTML content');
+      const htmlStart = orderRaw.toLowerCase().indexOf('content-type: text/html');
+      assert.ok(htmlStart >= 0, 'order confirmation must include an HTML MIME part');
+      const htmlPart = orderRaw.slice(htmlStart);
+      assert.ok(htmlPart.includes('&lt;em&gt;sale&lt;/em&gt;'),
+        'HTML templates must escape untrusted product markup');
+      assert.equal(htmlPart.includes('<em>sale</em>'), false,
+        'untrusted product markup must not become HTML');
       assert.equal(smtp.attempts.get(retryEmail), 2,
         'a temporary SMTP 451 should cause one delayed retry before delivery');
       assert.equal(smtp.accepted.filter(m => m.recipient === retryEmail).length, 1,
         'the retry should produce one accepted message after the transient failure');
 
+      const initialDlq = await channel.checkQueue('notification.identity-events.dlq');
       const expiredId = await publish(channel, 'identity.email-verification.requested.v1', {
         account_id: 710005,
         email: 'expired-' + suffix + '@example.test',
@@ -268,7 +273,7 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
       });
       await waitFor(async () => {
         const q = await channel.checkQueue('notification.identity-events.dlq');
-        return q.messageCount >= 1;
+        return q.messageCount > initialDlq.messageCount;
       }, 'invalid challenge to reach identity DLQ', 10000);
       // The stable event identifier is intentionally not used as an exactly-once SMTP guarantee:
       // a process crash between SMTP acceptance and RabbitMQ ACK can still lead to redelivery.
