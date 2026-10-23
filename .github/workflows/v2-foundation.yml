@@ -10,6 +10,7 @@ on:
       - 'AdidasCloneBackEnd/scripts/phase3/**'
       - 'AdidasCloneBackEnd/scripts/phase4/**'
       - 'AdidasCloneBackEnd/scripts/phase5/**'
+      - 'AdidasCloneBackEnd/scripts/phase6/**'
       - 'AdidasCloneBackEnd/infra/**'
       - 'AdidasCloneBackEnd/package.json'
       - 'AdidasCloneBackEnd/package-lock.json'
@@ -87,6 +88,9 @@ jobs:
       V2_IDENTITY_RMQ_USER: ci_inventory
       V2_IDENTITY_RMQ_PASSWORD: ci-inventory-rabbit-password
       V2_IDENTITY_EXPOSE_TEST_TOKENS: 'true'
+      V2_NOTIFICATION_RMQ_HOST: 127.0.0.1
+      V2_NOTIFICATION_RMQ_USER: ci_inventory
+      V2_NOTIFICATION_RMQ_PASSWORD: ci-inventory-rabbit-password
     defaults:
       run:
         working-directory: AdidasCloneBackEnd
@@ -140,6 +144,8 @@ jobs:
         run: npm run migrate:identity && npm run seed:identity:check && npm run seed:identity
       - name: Identity API, lifecycle, token replay and customer provisioning integration
         run: npm run test:identity
+      - name: Notification event-driven SMTP integration, retry and dead-letter verification
+        run: npm run test:notification
       - name: Check original seed variant parser without writing to any database
         run: npm run seed:inventory:check
       - name: Production dependency high severity guard
