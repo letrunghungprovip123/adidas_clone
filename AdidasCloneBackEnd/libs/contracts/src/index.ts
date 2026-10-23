@@ -106,6 +106,28 @@ export interface MessageEnvelope<TPayload> {
   actor: MessageActor;
   payload: TPayload;
 }
+/** Sensitive challenge payloads are internal events; Notification must never log their raw token. */
+export interface IdentityEmailChallengeRequestedPayload {
+  account_id: number;
+  email: string;
+  token: string;
+  expires_at: string;
+}
+export interface IdentityWelcomeEmailRequestedPayload {
+  account_id: number;
+  email: string;
+}
+export interface OrderConfirmedEventPayload {
+  order_id: number | string;
+  contact_email: string;
+  currency: string;
+  total_minor: number | string;
+  items?: Array<{
+    product_name: string;
+    quantity: number;
+    line_total_minor: number | string;
+  }>;
+}
 export type WireErrorCode =
   | 'VALIDATION_FAILED'
   | 'UNAUTHORIZED'
