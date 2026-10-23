@@ -187,10 +187,15 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
 
   private brokerUrl(): string {
     const host = process.env.V2_NOTIFICATION_RMQ_HOST || 'rabbitmq';
+    const port = Number(process.env.V2_NOTIFICATION_RMQ_PORT || 5672);
     const user = process.env.V2_NOTIFICATION_RMQ_USER;
     const password = process.env.V2_NOTIFICATION_RMQ_PASSWORD;
     if (!user || !password) throw new Error('Notification RabbitMQ credentials are required');
-    return 'amqp://' + encodeURIComponent(user) + ':' + encodeURIComponent(password) + '@' + host + ':5672';
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error('Notification RabbitMQ port is invalid');
+    }
+    return 'amqp://' + encodeURIComponent(user) + ':' + encodeURIComponent(password) +
+      '@' + host + ':' + port;
   }
 
   private async connectBroker(): Promise<void> {
