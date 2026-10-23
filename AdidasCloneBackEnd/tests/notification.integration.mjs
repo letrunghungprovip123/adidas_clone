@@ -242,12 +242,21 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
       await waitFor(() => smtp.accepted.some(m => m.recipient === orderEmail), 'order confirmation email');
       await waitFor(() => smtp.accepted.some(m => m.recipient === retryEmail), 'retry email', 15000);
 
-      const verificationRaw = smtp.accepted.find(m => m.recipient === verificationEmail).raw;
-      assert.ok(verificationRaw.includes('verify-email?token=' + token),
-        'verification template must contain an absolute web verification link');
-      const resetRaw = smtp.accepted.find(m => m.recipient === resetEmail).raw;
-      assert.ok(resetRaw.includes('reset-password?token=reset_' + suffix),
-        'password-reset template must contain the reset token');
+      // SMTP MIME may soft-wrap quoted-printable body lines and encode '=' as '=3D'.
+      // Normalize those transport-level encodings before checking the actual rendered URLs.
+      const decodeQuotedPrintable = value => value
+        .replace(/=\\r?\\n/g, '')
+        .replace(/=3D/gi, '=');
+      const verificationRaw = decodeQuotedPrintable(
+        smtp.accepted.find(m => m.recipient === verificationEmail).raw
+      );
+      assert.ok(verificationRaw.includes('https://shop.example.test/verify-email?token=' + token),
+        'verification template must contain the absolute web verification link');
+      const resetRaw = decodeQuotedPrintable(
+        smtp.accepted.find(m => m.recipient === resetEmail).raw
+      );
+      assert.ok(resetRaw.includes('https://shop.example.test/reset-password?token=reset_' + suffix),
+        'password-reset template must contain the absolute reset link');
       const welcomeRaw = smtp.accepted.find(m => m.recipient === welcomeEmail).raw;
       assert.ok(welcomeRaw.includes('Welcome to Adidas Clone'));
       const orderRaw = smtp.accepted.find(m => m.recipient === orderEmail).raw;
