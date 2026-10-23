@@ -322,6 +322,8 @@ export class IdentityOutboxPublisher implements OnModuleInit, OnModuleDestroy {
       EVENTS.identityEmailVerificationRequested);
     await this.channel.bindQueue('notification.identity-events.q', 'commerce.events',
       EVENTS.identityPasswordResetRequested);
+    await this.channel.bindQueue('notification.identity-events.q', 'commerce.events',
+      EVENTS.identityWelcomeEmailRequested);
     const publisher = this.channel;
     await publisher.assertExchange('identity.dlx', 'direct', { durable: true });
     await publisher.assertQueue('identity.commands.dlq', { durable: true });
@@ -341,14 +343,15 @@ export class IdentityOutboxPublisher implements OnModuleInit, OnModuleDestroy {
         );
         for (const row of pending.rows) {
           this.channel!.publish('commerce.events', row.topic, Buffer.from(JSON.stringify(row.envelope)), {
-            persistent: true, contentType: 'application/json', messageId: row.id
+            persistent: true, contentType: 'application/json', messageId: row.id, type: row.topic
           });
         }
         if (pending.rowCount) await this.channel!.waitForConfirms();
         for (const row of pending.rows) {
           await client.query(
-            "UPDATE identity_outbox SET published_at=clock_timestamp(), " +
-            "envelope=jsonb_set(envelope,'{payload,token}','null'::jsonb,true) WHERE id=$1",
+            "UPDATE identity_outbox SET published_at=clock_timestamp(), envelope=CASE " +
+            "WHEN envelope#>'{payload,token}' IS NOT NULL THEN " +
+            "jsonb_set(envelope,'{payload,token}','null'::jsonb,true) ELSE envelope END WHERE id=$1",
             [row.id]
           );
         }
@@ -601,6 +604,18 @@ export class IdentityService {
         const newAccount = result.rows[0];
         const token = await this.createChallenge(client, newAccount, 'EMAIL_VERIFY',
           this.requestFingerprint('email-verify', email, ip));
+        const welcomeId = randomUUID();
+        await client.query(
+          'INSERT INTO identity_outbox(topic,envelope) VALUES($1,$2)',
+          [EVENTS.identityWelcomeEmailRequested, JSON.stringify({
+            contract_version: 1,
+            message_id: welcomeId,
+            correlation_id: welcomeId,
+            occurred_at: new Date().toISOString(),
+            actor: { kind: 'system' },
+            payload: { account_id: newAccount.id, email: newAccount.email }
+          })]
+        );
         return { account: newAccount, token };
       });
       account = created.account;
