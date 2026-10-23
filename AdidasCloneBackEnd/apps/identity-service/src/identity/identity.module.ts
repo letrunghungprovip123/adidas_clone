@@ -650,15 +650,16 @@ export class IdentityService {
         return { kind: 'expired' as const, accountId: row.id };
       }
       const expiry = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
-      await client.query(
-        'UPDATE identity_refresh_sessions SET revoked_at=clock_timestamp(),replaced_by=$2 WHERE id=$1',
-        [row.refresh_id, newSessionId]
-      );
+      // Create the child first so the parent.replaced_by foreign key is valid.
       await client.query(
         'INSERT INTO identity_refresh_sessions(id,family_id,account_id,token_hash,expires_at,parent_id,client_fingerprint_hash) ' +
         'VALUES($1,$2,$3,$4,$5,$6,$7)',
         [newSessionId, row.family_id, row.id, sha256(newToken), expiry, row.refresh_id,
           sha256(safeRequestValue(userAgent) + '\u0000' + safeRequestValue(ip))]
+      );
+      await client.query(
+        'UPDATE identity_refresh_sessions SET revoked_at=clock_timestamp(),replaced_by=$2 WHERE id=$1',
+        [row.refresh_id, newSessionId]
       );
       return { kind: 'ok' as const, account: row, token: newToken, expiresAt: expiry };
     });
