@@ -245,7 +245,7 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
       // SMTP MIME may soft-wrap quoted-printable body lines and encode '=' as '=3D'.
       // Normalize those transport-level encodings before checking the actual rendered URLs.
       const decodeQuotedPrintable = value => value
-        .replace(/=\\r?\\n/g, '')
+        .replace(/=\r?\n/g, '')
         .replace(/=3D/gi, '=');
       const verificationRaw = decodeQuotedPrintable(
         smtp.accepted.find(m => m.recipient === verificationEmail).raw
