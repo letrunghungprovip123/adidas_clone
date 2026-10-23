@@ -351,7 +351,6 @@ export class IdentityOutboxPublisher implements OnModuleInit, OnModuleDestroy {
 
 @Injectable()
 export class IdentityService {
-  private readonly logger = new Logger(IdentityService.name);
   constructor(
     private readonly db: IdentityDatabase,
     private readonly keys: IdentityKeys,
@@ -369,43 +368,40 @@ export class IdentityService {
   private requestFingerprint(scope: string, email: string, ip: string): string {
     return sha256(scope + '\u0000' + email + '\u0000' + ip);
   }
-  private async assertNotBlocked(key: string): Promise<void> {
-    const result = await this.db.query<{blocked_until: Date | null; window_started_at: Date}>(
-      'SELECT blocked_until,window_started_at FROM identity_login_throttles WHERE throttle_key=$1', [key]
-    );
-    if (!result.rowCount) return;
-    const row = result.rows[0];
-    if (row.blocked_until && row.blocked_until.getTime() > Date.now()) {
-      throw new TooManyRequestsException('Too many attempts; try again later');
-    }
-    if (Date.now() - row.window_started_at.getTime() >= CHALLENGE_WINDOW_MS) {
-      await this.db.query(
-        'UPDATE identity_login_throttles SET failure_count=0,blocked_until=NULL,window_started_at=clock_timestamp() ' +
-        'WHERE throttle_key=$1', [key]
-      );
-    }
-  }
-  private async countFailure(key: string, maxFailures = 5): Promise<void> {
-    await this.db.transaction(async client => {
+  private async reserveLoginAttempt(key: string): Promise<void> {
+    const allowed = await this.db.transaction(async client => {
       await client.query(
         'INSERT INTO identity_login_throttles(throttle_key,window_started_at,failure_count) ' +
         'VALUES($1,clock_timestamp(),0) ON CONFLICT DO NOTHING', [key]
       );
-      const result = await client.query<{window_started_at: Date; failure_count: number}>(
-        'SELECT window_started_at,failure_count FROM identity_login_throttles WHERE throttle_key=$1 FOR UPDATE',
-        [key]
+      const selected = await client.query<{
+        window_started_at: Date; failure_count: number; blocked_until: Date | null
+      }>(
+        'SELECT window_started_at,failure_count,blocked_until FROM identity_login_throttles ' +
+        'WHERE throttle_key=$1 FOR UPDATE', [key]
       );
-      let count = result.rows[0].failure_count;
-      if (Date.now() - result.rows[0].window_started_at.getTime() >= CHALLENGE_WINDOW_MS) count = 0;
-      count += 1;
+      const row = selected.rows[0];
+      if (row.blocked_until && row.blocked_until.getTime() > Date.now()) return false;
+      let count = row.failure_count;
+      const reset = Date.now() - row.window_started_at.getTime() >= CHALLENGE_WINDOW_MS;
+      if (reset) count = 0;
+      if (count >= 5) {
+        await client.query(
+          "UPDATE identity_login_throttles SET blocked_until=clock_timestamp()+interval '15 minutes' WHERE throttle_key=$1",
+          [key]
+        );
+        return false;
+      }
       await client.query(
-        'UPDATE identity_login_throttles SET window_started_at=CASE WHEN $2=1 THEN clock_timestamp() ' +
-        'ELSE window_started_at END,failure_count=$2,blocked_until=CASE WHEN $2 >= $3 ' +
-        "THEN clock_timestamp()+interval '15 minutes' ELSE NULL END WHERE throttle_key=$1",
-        [key, count, maxFailures]
+        'UPDATE identity_login_throttles SET window_started_at=CASE WHEN $2 THEN clock_timestamp() ' +
+        'ELSE window_started_at END,failure_count=$3,blocked_until=NULL WHERE throttle_key=$1',
+        [key, reset, count + 1]
       );
+      return true;
     });
+    if (!allowed) throw new TooManyRequestsException('Too many attempts; try again later');
   }
+
   private async consumeRegisterLimit(key: string): Promise<void> {
     await this.db.transaction(async client => {
       await client.query(
@@ -602,12 +598,11 @@ export class IdentityService {
   async login(dto: LoginIdentityDto, ip: string, userAgent: string) {
     const email = emailAddress(dto.email);
     const throttleKey = this.requestFingerprint('login', email, ip);
-    await this.assertNotBlocked(throttleKey);
+    await this.reserveLoginAttempt(throttleKey);
     const result = await this.db.query<Account>('SELECT * FROM identity_accounts WHERE email=$1', [email]);
     const account = result.rows[0];
     const matches = await this.verifyPassword(account?.password_hash || null, dto.password);
     if (!account || account.status !== 'ACTIVE' || account.password_reset_required || !matches) {
-      await this.countFailure(throttleKey, 5);
       await this.audit('LOGIN_FAILED', account?.id ?? null, ip, {reason: 'INVALID_CREDENTIALS'});
       throw new UnauthorizedException('Invalid email or password');
     }
