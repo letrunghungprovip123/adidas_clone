@@ -200,15 +200,31 @@ export class IdentityKeys {
     } catch {
       throw new UnauthorizedException('Invalid access token');
     }
-    const validSignature = header.alg === 'RS256' && header.kid === KEY_ID &&
-      verify('RSA-SHA256', Buffer.from(parts[0] + '.' + parts[1]), this.publicKey,
-        Buffer.from(parts[2], 'base64url'));
+    if (!header || typeof header !== 'object' || Array.isArray(header) ||
+        !claims || typeof claims !== 'object' || Array.isArray(claims)) {
+      throw new UnauthorizedException('Invalid access token');
+    }
+    let validSignature = false;
+    try {
+      validSignature = header.alg === 'RS256' && header.kid === KEY_ID &&
+        verify('RSA-SHA256', Buffer.from(parts[0] + '.' + parts[1]), this.publicKey,
+          Buffer.from(parts[2], 'base64url'));
+    } catch {
+      throw new UnauthorizedException('Invalid access token');
+    }
     const now = Math.floor(Date.now() / 1000);
     if (!validSignature || claims.iss !== ISSUER || claims.aud !== AUDIENCE ||
         typeof claims.sub !== 'string' || !/^[1-9][0-9]*$/.test(claims.sub) ||
-        !Number.isInteger(claims.exp) || claims.exp <= now ||
+        !Number.isSafeInteger(Number(claims.sub)) ||
+        !Number.isInteger(claims.exp) || claims.exp <= now || claims.exp <= claims.iat ||
+        claims.exp - claims.iat > ACCESS_SECONDS ||
         !Number.isInteger(claims.iat) || claims.iat > now + 30 ||
-        !Number.isInteger(claims.ver) || !Array.isArray(claims.roles)) {
+        !Number.isInteger(claims.ver) || claims.ver < 1 ||
+        typeof claims.jti !== 'string' || claims.jti.length < 16 ||
+        !Array.isArray(claims.roles) || claims.roles.length < 1 ||
+        !claims.roles.every(role => role === 'CUSTOMER' || role === 'ADMIN') ||
+        typeof claims.email_verified !== 'boolean' ||
+        typeof claims.customer_provisioned !== 'boolean') {
       throw new UnauthorizedException('Invalid or expired access token');
     }
     return claims;
@@ -741,7 +757,7 @@ export class IdentityService {
       if (purpose === 'EMAIL_VERIFY') {
         await client.query(
           'UPDATE identity_accounts SET email_verified_at=COALESCE(email_verified_at,clock_timestamp()),' +
-          'updated_at=clock_timestamp() WHERE id=$1', [challenge.account_id]
+          'token_version=token_version+1,updated_at=clock_timestamp() WHERE id=$1', [challenge.account_id]
         );
       } else {
         await client.query(
