@@ -165,11 +165,14 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
     let channel;
 
     const brokerHost = process.env.V2_NOTIFICATION_RMQ_HOST || '127.0.0.1';
+    const brokerPort = Number(process.env.V2_NOTIFICATION_RMQ_PORT || 5672);
     const brokerUser = process.env.V2_NOTIFICATION_RMQ_USER;
     const brokerPassword = process.env.V2_NOTIFICATION_RMQ_PASSWORD;
     assert.ok(brokerUser && brokerPassword, 'CI/local test must provide Notification RabbitMQ credentials');
+    assert.ok(Number.isInteger(brokerPort) && brokerPort > 0 && brokerPort < 65536,
+      'Notification RabbitMQ port must be valid');
     const brokerUrl = 'amqp://' + encodeURIComponent(brokerUser) + ':' +
-      encodeURIComponent(brokerPassword) + '@' + brokerHost + ':5672';
+      encodeURIComponent(brokerPassword) + '@' + brokerHost + ':' + brokerPort;
 
     try {
       child = startProcess({
@@ -178,6 +181,7 @@ test('Notification P6: identity/order templates, persistent RMQ ACK, bounded ret
         V2_NOTIFICATION_ENABLED: 'true',
         V2_NOTIFICATION_RMQ_ENABLED: 'true',
         V2_NOTIFICATION_RMQ_HOST: brokerHost,
+        V2_NOTIFICATION_RMQ_PORT: String(brokerPort),
         V2_NOTIFICATION_RMQ_USER: brokerUser,
         V2_NOTIFICATION_RMQ_PASSWORD: brokerPassword,
         V2_NOTIFICATION_SMTP_HOST: '127.0.0.1',
