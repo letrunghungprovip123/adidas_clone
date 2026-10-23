@@ -53,6 +53,8 @@ export const COMMANDS = {
 } as const;
 
 export const EVENTS = {
+  identityEmailVerificationRequested: 'identity.email-verification.requested.v1',
+  identityPasswordResetRequested: 'identity.password-reset.requested.v1',
   inventoryReserved: 'inventory.reserved.v1',
   inventoryCommitted: 'inventory.committed.v1',
   inventoryReleased: 'inventory.released.v1',
