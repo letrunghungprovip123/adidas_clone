@@ -32,6 +32,9 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${V2_RABBITMQ_USER:?Set V2_RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${V2_RABBITMQ_PASSWORD:?Set V2_RABBITMQ_PASSWORD}
+    # Host access is loopback-only for local integration tests; the management UI remains private.
+    ports:
+      - '127.0.0.1:${V2_RABBITMQ_HOST_PORT:-5679}:5672'
     volumes:
       - v2_rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -201,6 +204,7 @@ services:
       V2_NOTIFICATION_ENABLED: 'true'
       V2_NOTIFICATION_RMQ_ENABLED: ${V2_NOTIFICATION_RMQ_ENABLED:-false}
       V2_NOTIFICATION_RMQ_HOST: rabbitmq
+      V2_NOTIFICATION_RMQ_PORT: '5672'
       V2_NOTIFICATION_RMQ_USER: ${V2_RABBITMQ_USER:?Set V2_RABBITMQ_USER}
       V2_NOTIFICATION_RMQ_PASSWORD: ${V2_RABBITMQ_PASSWORD:?Set V2_RABBITMQ_PASSWORD}
       V2_NOTIFICATION_SMTP_HOST: ${V2_NOTIFICATION_SMTP_HOST:-}
