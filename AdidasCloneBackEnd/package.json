@@ -35,6 +35,7 @@
     "migrate:identity": "node scripts/phase5/migrate-identity.mjs",
     "seed:identity:check": "node scripts/phase5/seed-identity.mjs --check",
     "seed:identity": "node scripts/phase5/seed-identity.mjs",
+    "seed:identity:sql": "node scripts/phase5/seed-identity.mjs --sql",
     "test:identity": "node --test tests/identity.integration.mjs",
     "migrate:customer": "node scripts/phase4/migrate-customer.mjs",
     "seed:customer:check": "node scripts/phase4/seed-customer.mjs --check",
