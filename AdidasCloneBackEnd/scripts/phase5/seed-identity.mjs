@@ -88,7 +88,7 @@ try {
       );
     }
     await client.query(
-      "SELECT setval(pg_get_serial_sequence('identity_accounts','id'), " +
+      "SELECT setval(pg_get_serial_sequence('identity_accounts','id')::regclass, " +
       "GREATEST((SELECT COALESCE(MAX(id),1) FROM identity_accounts),1), true)"
     );
     for (const account of accounts) {
