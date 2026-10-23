@@ -1,7 +1,7 @@
 import {
   BadRequestException, ConflictException, Controller, Get, Headers, HttpCode,
   Injectable, Logger, Module, OnModuleDestroy, OnModuleInit, Post, Body, Req,
-  ServiceUnavailableException, TooManyRequestsException, UnauthorizedException
+  HttpException, HttpStatus, ServiceUnavailableException, UnauthorizedException
 } from '@nestjs/common';
 import { ClientProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
 import { Pool, type PoolClient, type QueryResultRow } from 'pg';
@@ -213,7 +213,7 @@ export class IdentityKeys {
     return claims;
   }
   jwks() {
-    const key = this.publicKey.export({ format: 'jwk' }) as JsonWebKey;
+    const key = this.publicKey.export({ format: 'jwk' }) as { kty: string; n: string; e: string };
     return {
       keys: [{
         kty: key.kty, n: key.n, e: key.e,
@@ -399,7 +399,7 @@ export class IdentityService {
       );
       return true;
     });
-    if (!allowed) throw new TooManyRequestsException('Too many attempts; try again later');
+    if (!allowed) throw new HttpException('Too many attempts; try again later', HttpStatus.TOO_MANY_REQUESTS);
   }
 
   private async consumeRegisterLimit(key: string): Promise<void> {
@@ -415,14 +415,14 @@ export class IdentityService {
       let count = result.rows[0].failure_count;
       if (Date.now() - result.rows[0].window_started_at.getTime() >= CHALLENGE_WINDOW_MS) count = 0;
       if (result.rows[0].blocked_until && result.rows[0].blocked_until.getTime() > Date.now()) {
-        throw new TooManyRequestsException('Too many registration attempts; try again later');
+        throw new HttpException('Too many registration attempts; try again later', HttpStatus.TOO_MANY_REQUESTS);
       }
       if (count >= 3) {
         await client.query(
           "UPDATE identity_login_throttles SET blocked_until=clock_timestamp()+interval '15 minutes' WHERE throttle_key=$1",
           [key]
         );
-        throw new TooManyRequestsException('Too many registration attempts; try again later');
+        throw new HttpException('Too many registration attempts; try again later', HttpStatus.TOO_MANY_REQUESTS);
       }
       count += 1;
       await client.query(
@@ -663,8 +663,8 @@ export class IdentityService {
       return { kind: 'ok' as const, account: row, token: newToken, expiresAt: expiry };
     });
     if (result.kind !== 'ok') {
-      await this.audit('REFRESH_' + result.kind.toUpperCase(),
-        'accountId' in result ? result.accountId : null, ip);
+      const accountId = result.kind === 'invalid' ? null : result.accountId;
+      await this.audit('REFRESH_' + result.kind.toUpperCase(), accountId, ip);
       throw new UnauthorizedException(result.kind === 'replay'
         ? 'Refresh token reuse detected; session family revoked'
         : 'Invalid refresh token');
